@@ -70,7 +70,7 @@ def auto_flatten_nested_columns(df):
                 continue  # Skip unsupported list structures
 
         elif isinstance(sample, dict):
-            expanded - df[col].apply(pd.series)
+            expanded = df[col].apply(pd.Series)
         else:
             continue
 
