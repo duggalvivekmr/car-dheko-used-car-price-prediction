@@ -171,6 +171,13 @@ def run_preprocessing_pipeline(data_dir, feature_columns):
         if col in df.columns:
             df.drop(columns=col, inplace=True, errors='ignore')
 
+    # --- Add car_age feature ---
+    if 'new_car_detail_9_modelYear' in df.columns:
+        df['car_age'] = 2025 - df['new_car_detail_9_modelYear']  # Assuming current year is 2025
+        print("🛠️ Added 'car_age' feature from new_car_detail_9_modelYear")
+    else:
+        print("⚠️ 'new_car_detail_9_modelYear' column not found. 'car_age' not created.")
+
     df = clean_and_standardize_columns(df)  # Clean and standardize the columns
     print(f"🧪 Checking duplicate columns: {df.columns[df.columns.duplicated()].tolist()}")
     print(f"🧪 Shape before imputation: {df.shape}")

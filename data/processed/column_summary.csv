@@ -1,0 +1,62 @@
+,dtype,nulls,n_unique
+car_links,float64,0,8361
+new_car_detail_3_km,float64,0,4090
+new_car_overview_1_top_Kms Driven,object,2,4089
+new_car_detail_10_centralVariantId,float64,0,2713
+new_car_detail_11_variantName,float64,0,2157
+new_car_detail_12_price,float64,0,1400
+new_car_detail_13_priceActual,float64,0,722
+new_car_specs_1_top_Max Power,object,60,530
+new_car_specs_1_top_Mileage,object,287,522
+new_car_overview_1_top_RTO,object,894,464
+new_car_specs_1_top_Torque,object,60,366
+new_car_detail_8_model,float64,0,315
+new_car_overview_1_top_Registration Year,object,52,233
+new_car_specs_1_top_Engine,object,4,150
+new_car_overview_1_top_Engine Displacement,object,4,150
+new_car_detail_7_oem,float64,0,33
+new_car_detail_9_modelYear,float64,0,29
+car_age,float64,0,29
+new_car_feature_1_top_item_5,object,94,23
+new_car_feature_1_top_item_1,object,65,22
+new_car_overview_1_top_Year of Manufacture,float64,20,22
+new_car_specs_1_top_Wheel Size,object,2983,17
+new_car_feature_1_top_item_7,object,127,16
+new_car_feature_1_top_item_3,object,76,16
+new_car_feature_1_top_item_6,object,108,14
+new_car_feature_1_top_item_2,object,75,14
+new_car_feature_1_top_item_8,object,1102,13
+new_car_feature_1_top_item_0,object,65,12
+new_car_detail_2_bt,float64,0,11
+new_car_feature_1_top_item_4,object,86,11
+new_car_overview_1_top_Seats,object,6,8
+new_car_specs_1_top_Seats,float64,6,8
+new_car_overview_1_top_Insurance Validity,object,4,7
+city,float64,0,6
+new_car_detail_5_ownerNo,float64,0,6
+new_car_detail_6_owner,float64,0,6
+new_car_overview_1_top_Fuel Type,object,0,5
+new_car_overview_1_top_Ownership,object,32,5
+new_car_detail_1_ft,float64,0,5
+new_car_detail_4_transmission,float64,0,2
+new_car_overview_1_top_Transmission,object,0,2
+new_car_detail_16_trendingText.imgUrl,object,0,1
+new_car_detail_18_trendingText.desc,object,0,1
+new_car_detail_17_trendingText.heading,object,0,1
+new_car_detail_0_it,float64,0,1
+new_car_feature_2_data_Entertainment & Communication,object,1095,1
+new_car_feature_2_data_Safety,object,96,1
+new_car_feature_2_data_Exterior,object,90,1
+new_car_feature_2_data_Interior,object,77,1
+new_car_feature_0_heading,object,0,1
+new_car_overview_0_heading,object,0,1
+new_car_feature_3_commonIcon,object,0,1
+new_car_specs_0_heading,object,0,1
+new_car_feature_2_data_Comfort & Convenience,object,68,1
+new_car_specs_2_data_Engine and Transmission,object,3,1
+new_car_specs_2_data_Dimensions & Capacity,object,40,1
+new_car_specs_2_data_Miscellaneous,object,5,1
+new_car_specs_3_commonIcon,float64,8369,0
+new_car_overview_2_bottomData,float64,8369,0
+new_car_detail_14_priceSaving,float64,8369,0
+new_car_detail_15_priceFixedText,float64,8369,0
