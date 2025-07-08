@@ -133,7 +133,7 @@ def run_preprocessing_pipeline(data_dir, feature_columns):
     print("✅ Columns after flattening:", df.columns.tolist())
     print("✅ Sample data:")
     print(df.head(3))
-    df.to_csv("intermediate_debug_flattened.csv", index=False)
+    df.to_csv("./data/processed/intermediate_debug_flattened.csv", index=False)
 
 
     # Handle top-level nested structures specifically  
