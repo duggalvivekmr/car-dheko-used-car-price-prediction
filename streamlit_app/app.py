@@ -1,0 +1,455 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import joblib
+import os
+import sys
+# Add parent directory to sys.path so 'src' is accessible
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.abspath(os.path.join(current_dir, ".."))
+sys.path.append(parent_dir)
+
+from src.logger import log_prediction
+
+# --- Load model and preprocessors ---
+model_path = os.path.join(parent_dir, "model", "best_random_forest_model.pkl")
+scaler_path = os.path.join(parent_dir, "model", "scaler.pkl")
+encoder_path = os.path.join(parent_dir, "model", "ordinal_encoders.pkl")
+
+model = joblib.load(model_path)
+scaler = joblib.load(scaler_path)
+ordinal_encoders = joblib.load(encoder_path)
+
+# --- Constants ---
+MIN_PRICE = 100000
+MAX_PRICE = 9600000
+
+def inverse_price(predicted_value, min_price=MIN_PRICE, max_price=MAX_PRICE):
+    """Denormalize the predicted price."""
+    return predicted_value * (max_price - min_price) + min_price
+
+# --- Prediction function ---
+categorical_cols = [
+    "city",
+    "new_car_detail_1_ft",  # Fuel Type
+    "new_car_detail_2_bt",  # Body Type
+    "new_car_detail_4_transmission",  # Transmission
+    "new_car_detail_6_owner",  # Owner Type
+    "new_car_detail_7_oem",  # OEM
+    "new_car_detail_8_model",  # Model
+    "new_car_detail_11_variantName"  # Variant Name
+]
+
+def prepare_input(raw_input: dict) -> pd.DataFrame:
+    """Prepare input data for prediction."""
+    # Convert to DataFrame
+    df = pd.DataFrame([raw_input])
+    # Encode categorical variables
+    for col in categorical_cols:
+        if col in df.columns and col in ordinal_encoders:
+            encoder = ordinal_encoders[col]
+            known_categories = encoder.categories_[0].tolist()
+            
+            # Add '__unknown__' if not already present
+            if '__unknown__' not in known_categories:
+                known_categories.append('__unknown__')
+                encoder.categories_ = [np.array(known_categories)]
+
+            df[col] = df[col].astype(str).apply(lambda x: x if x in encoder.categories_[0] else '__unknown__')
+            df[col] = encoder.transform(df[[col]])
+        else:
+            st.warning(f"Missing or unencoded column: {col}")
+    for col in scaler.feature_names_in_:
+        if col not in df.columns:
+            df[col] = 0.0
+    df = df[scaler.feature_names_in_]
+    df[df.columns] = scaler.transform(df)
+    return df
+
+def predict_price(raw_input: dict) -> float:
+    """Predict the normalized price."""
+    X = prepare_input(raw_input)
+    return model.predict(X)[0]
+
+# --- Streamlit app ---
+st.set_page_config(page_title="Used Car Price Predictor", layout="centered")
+st.title("🚗 Used Car Price Prediction - Car Dheko")
+
+st.markdown("Fill in the car details to estimate its resale price.")
+
+# --- Input form ---
+with st.form("prediction_form"):
+    city = st.selectbox("City", ["Bangalore", "Jaipur", "Delhi", "Mumbai", "Chennai", "Hyderabad", "Kolkata"])
+    fuel_type = st.selectbox("Fuel Type", ["Petrol", "Diesel", "Cng", "Lpg", "Electric"])
+    body_type = st.selectbox("Body Type", ["Hatchback", "Sedan", "SUV", "MUV", "Convertible", "Coupe", "Wagon", "Minivans", "Hybrids", "Pickup Trucks"])
+    km = st.number_input("Kilometers Driven", min_value=0, value=1000000, step=100)
+    transmission = st.selectbox("Transmission", ["Manual", "Automatic"])
+    owner_no = st.number_input("Owner Number", min_value=1, max_value=5, value=1, step=1)
+    owner_type = st.selectbox("Owner Type", ["0th Owner", "1st Owner", "2nd Owner", "3rd Owner", "4th Owner", "5th Owner"])
+    oem = st.selectbox("OEM (Manufacturer)",[
+                        "Maruti", "Ford", "Tata", "Hyundai", "Jeep", "Datsun", "Honda", "Mahindra", "Mercedes-Benz", 
+                        "BMW", "Renault", "Audi", "Toyota", "Mini", "Kia", "Skoda", "Volkswagen", "Volvo", "MG", 
+                        "Nissan", "Fiat", "Mahindra SsangYong", "Mitsubishi", "Jaguar", "Land Rover", "Chevrolet", 
+                        "Citroen", "Opel", "Mahindra Renault", "Isuzu", "Lexus", "Porsche", "Hindustan Motors"
+                        ])
+    car_model = st.selectbox("Model",[ 
+                        "Maruti Celerio", "Ford Ecosport", "Tata Tiago", "Hyundai Xcent", "Maruti SX4 S Cross", 
+                        "Jeep Compass", "Datsun GO", "Hyundai Venue", "Maruti Ciaz", "Maruti Baleno", "Hyundai Grand i10", 
+                        "Honda Jazz", "Mahindra XUV500", "Mercedes-Benz GLA", "Hyundai i20", "Tata Nexon", "Honda City", 
+                        "BMW 5 Series", "Maruti Swift", "Renault Duster", "Mercedes-Benz S-Class", "Hyundai Santro", 
+                        "Hyundai Santro Xing", "Mercedes-Benz E-Class", "Audi A4", "Maruti Wagon R", "Maruti Ertiga", 
+                        "Mercedes-Benz C-Class", "Toyota Fortuner", "Hyundai Elantra", "Audi A6", "Maruti Alto 800", 
+                        "Mahindra Scorpio", "Mini 3 DOOR", "Kia Seltos", "Maruti Alto", "Mercedes-Benz GL-Class", 
+                        "Tata New Safari", "Audi Q7", "Renault KWID", "Hyundai Getz", "Skoda Rapid", "Hyundai Creta", 
+                        "Tata Harrier", "BMW 3 Series GT", "Renault Lodgy", "Skoda Octavia", "Maruti Ritz", "Volkswagen Polo", 
+                        "Mahindra KUV 100", "BMW X3", "Hyundai i10", "Volvo S60", "Mahindra XUV300", "MG Hector Plus", "Honda Brio", 
+                        "Maruti Alto K10", "Renault Kiger", "Hyundai EON", "Volkswagen Vento", "Toyota Yaris", "MG Hector", "Hyundai Alcazar", 
+                        "Volkswagen T-Roc", "BMW 3 Series", "Skoda Superb", "Audi Q5", "Ford Endeavour", "Ford Figo", "Maruti Ignis", "Renault Triber", 
+                        "BMW X5", "Hyundai Tucson", "Hyundai Verna", "Mercedes-Benz GLC", "Nissan Terrano", "Honda CR-V", "Mercedes-Benz A-Class Limousine", 
+                        "Toyota Innova", "Hyundai Santa Fe", "BMW 6 Series", "Maruti Baleno RS", "Renault Captur", "Maruti Vitara Brezza", "Maruti Swift Dzire", 
+                        "Fiat Linea", "Hyundai i20 Active", "Honda WR-V", "Mahindra Ssangyong Rexton", "Toyota Corolla Altis", "Ford Ikon", "Mitsubishi Cedia", 
+                        "Jaguar XF", "Audi A3", "Skoda Kushaq", "Volkswagen Taigun", "MG Astor", "Hyundai Accent", "Mercedes-Benz B Class", "Kia Carnival", 
+                        "Skoda Laura", "BMW X4", "Mini Cooper", "Land Rover Discovery Sport", "Volvo XC40", "Kia Sonet", "Mahindra Verito", "Maruti S-Presso", 
+                        "Volkswagen Jetta", "Datsun RediGO", "Ford Aspire", "Ford Freestyle", "Audi Q3", "Tata Tigor", "Jaguar F-Pace", "Mercedes-Benz A Class", 
+                        "Toyota Glanza", "Nissan Magnite", "Maruti Gypsy", "Tata Safari Storme", "Maruti Celerio X", "Mercedes-Benz M-Class", "Mercedes-Benz GLE", 
+                        "Toyota Urban cruiser", "Mahindra Thar", "Mercedes-Benz CLA", "Mahindra e2o Plus", "MG Comet EV", "Maruti Omni", "Volkswagen Tiguan", "Tata Altroz", 
+                        "Tata Nexon EV Max", "Tata Indica V2", "Toyota Innova Crysta", "Volkswagen Ameo", "Tata Nexon EV Prime", "BMW X1", "Chevrolet Cruze", "Toyota Camry", 
+                        "Fiat Punto Abarth", "Mahindra TUV 300", "Chevrolet Beat", "Maruti Eeco", "Maruti 1000", "Citroen C5 Aircross", "Mahindra XUV700", "Hyundai Grand i10 Nios", 
+                        "Maruti Zen", "Mahindra Quanto", "Land Rover Freelander 2", "OpelCorsa", "Mahindra Xylo", "Tata Zest", "Honda New Accord", "Skoda Yeti", "Maruti SX4", 
+                        "Jaguar XE", "Chevrolet Spark", "Hyundai i20 N Line", "Chevrolet Tavera", "BMW X7", "Mahindra Renault Logan", "Citroen C3", "Tata Nano", "Honda Amaze", 
+                        "Mahindra Bolero Power Plus", "Tata Manza", "Maruti Esteem", "Tata Hexa", "Nissan Micra Active", "Mitsubishi Lancer", "Ford Fiesta", "Mahindra Bolero Camper",
+                        "Fiat Punto", "Kia Carens", "Chevrolet Enjoy", "Volkswagen Tiguan Allspace", "Skoda Slavia", "Mahindra Marazzo", "Tata Indigo", "Jaguar XJ", "Skoda Fabia", 
+                        "Tata Sumo", "Ford Mondeo", "Nissan Sunny", "Fiat Palio", "Toyota Etios", "Maruti Estilo", "Mahindra Bolero", "Jeep Meridian", "BMW 1 Series", "Volvo XC 90",
+                        "Audi A3 cabriolet", "MG Gloster", "Land Rover Range Rover Sport", "Nissan Micra", "Fiat Punto EVO", "Mini Cooper Countryman", "Renault Fluence", "Maruti A-Star", 
+                        "Tata Nexon EV", "Chevrolet Sail", "BMW 7 Series", "Maruti XL6", "Hyundai Sonata", "Honda Civic", "Maruti Ertiga Tour", "Mercedes-Benz GLS", "Isuzu MU 7", "Maruti 800",
+                        "Hyundai Aura", "BMW 3 Series Gran Limousine", "Volvo S90", "Tata Indica", "Tata Punch", "Honda BR-V", "Mahindra Scorpio N", "Skoda Kodiaq", "Tata Tiago NRG", 
+                        "Datsun GO Plus", "BMW 2 Series", "Maruti Wagon R Stingray", "Mini 5 DOOR", "Fiat Grande Punto", "Mahindra KUV 100 NXT", "Mercedes-Benz GLA Class", "Chevrolet Aveo", 
+                        "Land Rover Range Rover Velar", "Toyota Hyryder", "Maruti Zen Estilo", "Toyota Etios Liva", "Land Rover Range Rover Evoque", "Maruti Versa", "Isuzu MU-X", 
+                        "Fiat Punto Pure", "Honda Mobilio", "Chevrolet Optra", "Volvo S 80", "Mitsubishi Pajero", "Audi A8", "Volvo XC60", "Mercedes-Benz AMG GLA 35", 
+                        "Mercedes-Benz AMG A 35", "Volkswagen Virtus", "Land Rover Discovery", "Lexus ES", "Audi Q2", "Nissan Kicks", "Mahindra TUV 300 Plus", "Mini Cooper SE", "Maruti Brezza", 
+                        "Jeep Wrangler", "Toyota Etios Cross", "Land Rover Defender", "Mercedes-Benz GLC Coupe", "Lexus RX", "Mitsubishi Outlander", "Mercedes-Benz CLS-Class", "Maruti Jimny", 
+                        "Mini Cooper Clubman", "Porsche Cayenne", "Mercedes-Benz AMG G 63", "Audi Q3 Sportback", "Maruti Swift Dzire Tour", "Porsche Macan", "Mercedes-Benz G", "Mini Cooper Convertible", 
+                        "Toyota Vellfire", "Toyota Land Cruiser 300", "Toyota Fortuner Legender", "Mahindra Scorpio Classic", "Mercedes-Benz SLC", "Isuzu D-Max", "Maruti Grand Vitara", "Ford Fiesta Classic",
+                        "Maruti FRONX", "Maruti Celerio Tour 2018-2021", "Mahindra Alturas G4", "Mahindra Jeep", "Toyota Qualis", "Volkswagen Passat", "Land Rover Range Rover", "Fiat Avventura", 
+                        "Renault Scala", "Honda City Hybrid", "Tata Aria", "Volvo V40", "Tata Bolt", "MG ZS EV", "Mahindra E Verito", "Hyundai Xcent Prime", "Mercedes-Benz EQC", "Fiat Abarth Avventura", 
+                        "Hindustan Motors Contessa", "Mahindra Bolero Neo", "Tata Yodha Pickup", "Tata Indigo Marina", "Chevrolet Captiva", "Mahindra Bolero Pik Up Extra Long", "Toyota Corolla", 
+                        "Volvo S60 Cross Country", "Mercedes-Benz AMG GLC 43", "Chevrolet Aveo U-VA", "Hyundai Kona", "Tata Tigor EV", "Porsche 911", "Renault Pulse", "Volkswagen CrossPolo", "Ambassador", 
+                        "Jeep Compass Trailhawk", "Tata Sumo Victa", "Porsche Panamera", "Mercedes-Benz AMG GT", "Audi S5 Sportback", "Jaguar F-TYPE", "Hyundai Kona Electric", "Tata Nexon EV Prime XZ Plus",
+                        ])
+    model_year = st.number_input("Model Year", min_value=2000, max_value=2023, value=2017, step=1)
+    variant_name = st.selectbox("Variant Name",[ 
+                                 "VXI", "1.5 Petrol Titanium BSIV", "1.2 Revotron XZ", "1.2 Kappa S Option", "DDiS 200 Zeta", "2.0 Longitude BSIV", 
+                                 "T Option BSIV", "SX Plus Turbo DCT BSIV", "Alpha Automatic BSIV", "1.2 Revotron XZ WO Alloy", "1.2 Delta", 
+                                 "1.2 Kappa Sportz Option AT", "VX CVT", "1.2 Revotron XZA", "W6 2WD", "2.0 Limited", "220d 4M BSVI", "Asta 1.4 CRDi", 
+                                 "XM Plus S BSVI", "i VTEC V", "520d Sedan", "VXI", "RXS", "S 500 L", "Sportz AMT BSIV", "GLS LPG", "Exclusive E 200", 
+                                 "35 TDI Premium", "W8 2WD", "Model S Diesel BSVI", "1.2 VTVT SX", "VXI BS IV", "ZXI Plus Petrol", "Progressive C 220d", 
+                                 "530i Sport", "3.0 Diesel", "RXZ 110PS AMT BSIV", "Sportz 1.2", "Asta Option 1.4 CRDi", "1.2 Zeta", "SX", "35 TDI", 
+                                 "VXI Plus BSVI", "SLE 7S BSIII", "Cooper S BSVI", "XZ Plus", "GTX Plus DCT", "AMG E 350d BSVI", "LXi", "Magna Plus BSIV", 
+                                 "350 CDI Blue Efficiency", "XZA Plus 6 Str AT BSVI", "1.2 Kappa Asta", "35 TDI Quattro Premium Plus", "SLE BSIII", 
+                                 "1.0 RXT AMT Opt", "1.5 Revotorq XM", "GLS", "VXI AMT", "1.5 TDI Ambition With Alloy Wheel", "1.5 Petrol Titanium", 
+                                 "1.6 CRDi SX Plus", "XZA Plus AT", "VDI", "ZXI Optional", "Luxury Line", "VDi Plus", "1.2 V AT i VTEC", 
+                                 "110PS RxZ 7 Seater", "1.8 TSI AT L K", "1.2 Revotron XT", "Asta Turbo iMT DT", "V MT", "GT TSI", "1.5 TDI Ambition BSIV", 
+                                 "CRDi Era", "mFALCON D75 K6", "xDrive20d xLine", "VXI Plus Optional", "Magna LPG", "1.0 AMT RXT", "D4 KINETIC", "E 350d", 
+                                 "W6 AMT Sunroof BSVI", "Sharp CVT", "S MT", "Zeta CVT", "RXZ AMT DT", "Magna Plus", "1.2 TSI Highline Plus AT", "G BSIV", 
+                                 "Sharp Diesel MT BSIV", "Signature (O) AT", "Era 1.1 iTech SE", "1.6 SX Automatic", "Era 1.4 CRDi", "SX Opt Turbo DCT", 
+                                 "AT W8 FWD", "TSI", "VXI AT", "320d", "Model S DCT BSVI", "Elegance 2.0 TDI CR AT", "Petrol RxE", "30 TDI Sport Edition", 
+                                 "1.2 Sportz", "3.2 Titanium AT 4X4", "1.2P Titanium Opt MT", "1.2 AMT Zeta BSIV", "1.5 Signature (O) 7-Seater Diesel AT", 
+                                 "Sportz", "W10 2WD", "XT Plus BSVI", "RXZ", "Magna", "xDrive 30d M Sport", "Asta 1.2", "320d Highline", 
+                                 "2.0 e-VGT 2WD AT GL Opt", "2.8 2WD MT", "XZ BSIV", "VTVT 1.6 AT SX Option", "220d 4MATIC Style", "XV Premium 110 PS", 
+                                 "VDI BSIV", "110PS Diesel RxZ AMT", "i-VTEC CVT V", "1.5 TDI Elegance Black Package", "2.4L 4WD AT", 
+                                 "1.5 Petrol Titanium Plus BSIV", "1.5 TDI Highline", "A 200 BSVI", "2.0 VX (Petrol) 7 Seater", "4x4 AT", 
+                                 "GT 630i M Sport BSVI", "1.2 CVT Alpha", "1.0 Petrol", "Asta Option 1.2", "1.5 Diesel Platine", "ZDi", "SX Turbo BSIV", 
+                                 "1.4 Limited Opt DCT BSVI", "85PS Diesel RxE", "1.5 Petrol Trend Plus AT BSIV", "V", "AT W10 1.99 mHawk", "1.2 V i VTEC", 
+                                 "CRDi 1.6 SX", "ZDI BSIV", "1.2 VX i VTEC", "AT Asta", "i-VTEC CVT ZX", "1.5 Ti VCT AT Titanium BSIV", "G CVT BSIV", 
+                                 "1.2 Alpha", "Diesel Highline", "i-VTEC V", "Emotion Pack", "1.5 Petrol Titanium Plus AT BSIV", "1.4 SX", "1.3 Alpha", 
+                                 "i DTec V", "E 220 CDI Avantgarde", "1.2 Kappa Sportz BSIV", "ZDi Plus Dual Tone", "i-VTEC VX", "RX7", "1.5 Diesel Titanium Plus BSIV", 
+                                 "XZ Plus DualTone Roof (O)", "Sportz Option 1.2", "E250 CDI Blue Efficiency", "Diesel D4DG", "ZXI", "Delta BSVI", "RS VDI", "SX AT", 
+                                 "2.5 VX (Diesel) 7 Seater BS IV", "DDiS 200 Delta", "AT ZXi Plus", "1.3 Flair", "xDrive 30d xLine", "LDi", "Spirit", "2.2 Litre Luxury", 
+                                 "3.0 TDI quattro", "1.0 TSI Highline Plus", "LXI Minor", "SX Plus Turbo DCT", "Alpha BSIV", "35 TDI Technology", "SX Opt Diesel", 
+                                 "1.0 TSI Style AT Anniversary Edition BSVI", "Signature 7-Seater AT", "1.0 TSI Comfortline BSVI", "Magna 1.2", "AMT ZXI Plus BS IV", 
+                                 "330 Ci Coupe", "Sharp BSVI", "Executive CNG", "2.0 TDI Premium Plus", "Climber 1.0 MT Opt", "1.2 Kappa Magna BSIV", 
+                                 "C 220d Avantgarde Edition C", "2.0 Limited 4X4", "SX Diesel BSIV", "XZ Plus LUXS DT BSVI", "D Lite Plus", "W4 Diesel BSIV", 
+                                 "1.2 Kappa Sportz Option", "i VTEC CVT VX", "Diesel Comfortline 1.2L", "LXI Optional-O", "i VTEC CVT SV", "XZ Plus HS", "B180 CDI", 
+                                 "VVT VXI", "2.0 Sport", "1.6 VTVT SX", "Premium 8 STR", "Asta Turbo iMT", "ZXI Plus DT AMT BSVI", "1.6 TDI Elegance", "VXI Optional", 
+                                 "W8 FWD", "L n K 1.9 PD AT", "XL Plus 85 PS", "LK 1.8 TSI AT", "T Jet Plus", "M Sport X xDrive30d", "2.0d SAV", "Delta BSIV", 
+                                 "2.5 E Diesel PS 7-Seater", "W9 BSIV", "S", "1.5 TDI AT Style BSIV", "SD4 HSE Luxury 7S", "1.2 MPI Highline Plus", "1.6 VTVT SX Plus", 
+                                 "1.0 MPI Comfortline", "4x2 AT", "Asta", "2.5 V Diesel 7-seater", "G", "RXZ Turbo", "RXT AMT Opt DT", "1.5 Diesel Titanium BSIV", "RXT AMT", 
+                                 "mFALCON G80 K8", "RXZ Turbo CVT DT", "SX Opt Diesel BSVI", "T4 R-Design", "2.5 G (Diesel) 8 Seater BS III", "1.5 TDCi Titanium Plus BSIV", 
+                                 "Adventure Edition 85PS RXE", "SX Opt", "Petrol RxL", "85PS Diesel RxL Plus", "1.2 Kappa Magna AT", "W11 BSIV", "GTX Plus Turbo iMT BSVI", 
+                                 "Sharp DCT", "1.6 VTVT AT SX Plus", "Magna AT", "1.8 TFSI", "i-VTEC ZX", "1.5 D4 BSIV", "Asta Sunroof AT", "VXI Plus 2019-2022", "W11 Option BSIV", 
+                                 "AT W10 FWD", "RXT EASY-R AMT BSVI", "ZXI AMT", "1.4 TSI Comfortline", "1.5 TDCi Trend BSIV", "W10 AWD", "AT VXi Plus", "VXI BSIV", "V CVT", 
+                                 "VTVT 1.6 SX", "VXI BSVI", "AMT 1.0 T Option", "Ambiente", "ZXI AMT 1.2", "CLIMBER BSVI", "2.0 Limited Option", "3.0 TDI Quattro Premium Plus", 
+                                 "320d Luxury Line", "Sportz Option", "1.6 SX", "3.0L 4X4 AT", "1.2 Zeta BSIV", "VXI 1.2", "Zeta", "Titanium Diesel BSIV", "1.2 CVT Delta", 
+                                 "530d M Sport", "1.0 RXL BSVI", "xDrive 20d xLine", "1.5 TDI Style BSIV", "1.5 Diesel Trend", "Diesel ZXI", "ZXI Optional AMT BSIV", "XM", 
+                                 "VXi Option", "330i M Sport", "HTK Plus AT D", "1.5 Turbo Smart pro BSVI", "1.5 Diesel Titanium", "AMT ZXI", "35 TDI Premium Plus", 
+                                 "SX Opt Turbo BSVI", "Magna 1.1L", "1.2 S i VTEC", "1.6 SX VTVT", "ZXI MT BSIV", "ZX CVT", "1.2 Asta Option", "Prestige 2.0 AWD", 
+                                 "VTVT 1.6 EX", "ZXI Plus BSIV", "Asta Option BSIV", "A180 Sport", "VXI 2018", "1.6 CRDi AT SX Plus", "Turbo XV Premium BSVI", 
+                                 "Petrol RXS CVT", "MG410W ST", "2.5 TDi AT", "MG410W HT", "1.6 VTVT S", "SX Opt Turbo BSIV", "1.2 Sportz Option", "1.6 TDI Elegance Plus", 
+                                 "1.6 Highline", "Exquisite 1.2 MPI Highline", "XZ", "1.6 TDI Ambition", "EX", "Petrol Asta Option", "Magna Plus Diesel", "i DTec VX", 
+                                 "E250 CDI Avantgarde", "1.5 Petrol Titanium AT", "ZXI Option BSIV", "ZXi Plus", "ML 250 CDI", "350d", "Petrol RXS", "CRDi 1.6 SX Option", 
+                                 "VXI Opt 1.2", "Super EX BSVI", "220d 4MATIC", "High", "C 220 CDI Avantgarde", "VDi Option", "HTX Diesel", "HTX IVT G", "1.4 Limited Option", 
+                                 "1.2 Magna Executive", "LX 4-Str Hard Top AT BSVI", "200 CDI Sport", "Asta Option Diesel", "1.2 Revotron XM", "1.2 S MT", "Delta CVT", "1.2 S", 
+                                 "SX BSVI", "HTX Turbo iMT BSVI", "W11 Option AT", "ZXI 1.2", "1.6 CRDi SX", "Alpha AT BSVI", "P6", "Plush", "CRDi SX", "Turbo XV BSVI", 
+                                 "Petrol Titanium", "5 Str STD", "XZ Plus Dual Tone Roof BSVI", "SX IVT Opt", "2.0L TDI Highline AT", "2.0 TSI Elegance BSVI", "XM Plus", 
+                                 "XL", "XZ Plus Lux", "Sportz IVT", "1.5 TDI Highline AT", "LX", "Sharp CVT BSVI", "2.7 ZX AT BSIV", "AMT ZXI Plus", "1.1 CRDi SX", 
+                                 "LXI 2018", "1.5 TDI Highline Plus 16 AT", "Era 1.1", "2.7 GX 8 STR", "XZA Plus AT BSVI", "Petrol Trendline 1.2L", "1.2 SV i VTEC", 
+                                 "1.5 GXI CVT", "VXI AT Optional", "1.3 VXI ABS", "1.0 TSI Topline BSVI", "LS zipPlus", "GVS", "LXI BSII", "sDrive20d Expedition", 
+                                 "2.5 ZX Diesel 7 Seater", "AMT VDI", "HTK G", "1.5 DV5 MT Titanium Optional", "2.5 GX 8 STR BSIV", "2.8 GX AT 8S BSIV", "LTZ", "V4 (MT)", 
+                                 "HTX Diesel AT BSVI", "LXi BSIII", "1.4 T-Jet", "T4", "LT", "1.8 VL CVT", "Diesel Trendline 1.2L", "1.2 MPI Highline", "DL BSIII", "V AT", 
+                                 "7 Seater STD 2020-2022", "AC", "Shine", "AX7 Diesel AT Luxury Pack BSVI", "2.5 GX (Diesel) 7 Seater BS IV", "1.6 SX CRDi (O)", "XM S BSVI", 
+                                 "Asta Option AT", "Transform VTVT", "W8 BSVI", "XZA Plus (O) AMT", "2.4 G 7 STR", "85PS Diesel RxL Optional", "C6", "HSE", "Petrol Highline", 
+                                 "XV BSVI", "Sportz Plus Dual Tone BSIV", "1.4Gsi", "LX 4-Str Convert Top AT BSVI", "Sportz Option 1.4 CRDi", "GXi", "XO", "VXI Petrol", "S9", 
+                                 "5 Seater STD 2020-2022", "Shine DualTone", "1.6 CLXI", "XTA Plus Dark Edition BSVI", "E8 ABS Airbag BSIV", "520d Luxury Line", "1.5 S AT", 
+                                 "Quadrajet 1.3 XT", "DI 4X4 PS", "2.4 A/T", "W6 Diesel Sunroof NT BSVI", "Progressive 220d", "Elegance 4X4", "CNG 5 Seater AC", "XZ Plus BSVI", 
+                                 "RXZ EASY-R AMT BSVI", "AT W8 1.99 mHawk", "ZXI CNG", "Green Vxi (CNG)", "Portfolio", "Alpha", "1.0 LS", "IPL II 1.2 Diesel Highline", 
+                                 "Alpha BSVI", "1.2 Alpha BSIV", "SHVS ZDI Plus", "N8 DCT BSVI", "i VTEC SV", "Neo 3 Base 10 Str", "xDrive 40i M Sport", "LS", "1.4 GLX Petrol", 
+                                 "110PS Diesel RxL", "Sharp Diesel MT", "1.2 MPI Comfortline", "110PS Diesel RxL Explore", "P8", "1.6 GSi", "2.5 VX (Diesel) 8 Seater BS IV", 
+                                 "Puretech 82 Feel BSVI", "VX CVT Petrol", "2.4 VX MT 8S BSIV", "2.8 ZX AT BSIV", "1.0 TSI Ambition AT", "1.0 TSI Comfortline", "1.2 Ti-VCT Titanium Plus", 
+                                 "1.2 Magna", "GTX Plus Diesel iMT BSVI", "AMT ZDI", "1.99 FWD W8", "ZLX", "Diesel EXI", "2.5 G4 Diesel 7-seater", "Aura (ABS) Safire BS IV", 
+                                 "1.8 TSI", "Zeta BSIV", "1.5 Diesel RXT Mono", "i VTEC VX", "VX AT", "AMT Sportz", "XV", "GLXD", "1.6 ZXi Duratec", "Era", "1.6 CRDi EX MT", 
+                                 "XZ Plus HS Dark Edition", "AT W10 AWD", "1.6 MPI Ambition BSIV", "Diesel Highline 1.2L", "1.5 TDCi Titanium BSIV", "Elegance 1.8 TSI", "T8", 
+                                 "GOLD ZX 2WD", "1.3 Dynamic", "Signature AT", "1.6 VTVT SX Plus Dual Tone", "G CVT", "HTK Plus iMT", "1.6 SX Automatic Diesel", 
+                                 "CRDi (Leather Option)", "i DTec VX Option", "LXI BS IV", "W8 Option AMT BSVI", "S Plus", "Era Plus", "sDrive20d", "1.2 Sigma BSIV", 
+                                 "W8 Option BSIV", "XL BSVI", "T Option", "ZXI AT Optional", "Luxury Plus Turbo DCT 6 STR 2022-2023", "1.2 VDI BSII", "3.6 FXI 4X4", 
+                                 "xDrive20d", "TCDi LTZ 7 Seater", "1.2 Revotron XZA Plus DualTone", "Sportz 1.4 CRDi", "Twist XT", "4Motion", "D4 R-Design", "RXE BSIV", 
+                                 "AMT 1.0 S", "1.5 GXI", "Magna Plus Option", "1.0 TSI Ambition BSVI", "1.4 Sport", "AMT VXI", "RXZ Turbo CVT", "DDiS VDI", "110PS Diesel RxZ", 
+                                 "1.5 Ti-VCT Titanium", "mHAWK100 T8 AMT", "CNG", "HTK Plus G", "SX Opt iMT", "1.5 Diesel Trend Plus BSIV", "1.6 VTVT E Plus", "2.7 ZX 7 STR AT", 
+                                 "1.2 Revotron XZA Plus", "1.5 TDI AT Elegance Plus", "1.5 S MT", "S i-Dtech", "1.3 VXi", "XV Premium BSVI", "LX 4-Str Hard Top Diesel AT BSVI", 
+                                 "Magna 1.2 iTech SE", "M8", "2.5 V6 TDI", "5.0L", "Diesel LXI", "1.4 TDI Ambiente", "CX", "Duratec", "EX i-Vtech", "1.0 RXT Opt", "AMT ZXI BSIV", 
+                                 "LX TDI BSIII", "1.0 RXT", "1.2 Sigma", "RXL", "Turbo Sportz", "1.05 Revotorq XZ WO Alloy", "Diesel Special Edition", "1.6 ZXI", "GLX", 
+                                 "LX 4-Str Hard Top BSVI", "SHVS ZDI", "VXI AT BSVI", "RXZ BSIV", "C 220 CDI Edition C AT", "1.0 TSI Style", "2.4L 4WD", "2.0 Diesel Portfolio", 
+                                 "1.0 T Option", "XZ BSVI", "1.0 RXT Optional AT 2016-2019", "XZ Plus P Dark Edition", "1.0 MPI Highline Plus", "AX7 Diesel BSVI", 
+                                 "1.4 ZXi TDCi LE", "ML 350 CDI", "43 AMG Coupe", "DLX BSIII", "1.2 Asta", "XZ Plus S BSVI", "VXI 2019-2022", "85PS Diesel RxL", 
+                                 "1.5 Ti VCT MT Ambiente BSIV", "Premium AT", "Premium", "Diesel XL", "SX Opt Sport iMT", "Sportz AT", "E250 CDI Avantgrade", 
+                                 "Puretech 110 Feel", "1.1 SLX", "1.2 AMT Delta BSIV", "1.4 GD", "Delta", "Diesel Magna", "220 CDI AT", "2.0 TDI MT Style", 
+                                 "Magna Optional 1.4 CRDi", "Climber 1.0 MT Opt BSIV", "DLS BSIII", "i-VTEC S", "Plus - AC BSIII", "1.0 S", "AMT Asta", "1.5 V i DTEC", 
+                                 "1.0 Ecoboost Titanium Plus BSIV", "DICOR 2.2 GX 4x2", "1.6 CRDi SX Option", "1.0 TSI Style AT BSVI", "1.2 Asta with AVN", 
+                                 "C 200 CGI", "GTK", "W8 Option Diesel BSIV", "CVT", "SX Diesel BSVI", "Limited Opt Upland AT 4x2", "CRDe", "2.0L Diesel Portfolio", 
+                                 "Sportz Plus", "116i", "1.0 RXT Optional", "1.5 Ti VCT MT Trend BSIV", "V CVT Petrol BSIV", "1.8 TSI AT Style", "2.0 Limited Plus AT", 
+                                 "1.2 TDI Ambition Plus", "RXS 85PS BSIV", "1.4 Sportz", "ZXI AT", "SX Turbo iMT", "1.0 TSI Ambition AT BSVI", "1.6 MPI AT Ambition BSIV", 
+                                 "AMT VXI BSIV", "Petrol Highline AT", "AT CRDi", "i DTEC SV", "2.8 2WD MT BSIV", "2.0 TDI Quattro Premium Plus", "D5 AT AWD", "W11 Option", 
+                                 "Style Plus 1.8 TSI AT", "Titanium Petrol BSIV", "Ambition 4WD", "40 TFSI Premium Plus", "2.4 VX MT 8 STR", "1.5 V MT Exclusive", 
+                                 "320d Edition Sport", "sDrive 20d xLine", "xDrive 30d", "RXS Option CVT BSIV", "Sportz Petrol BSIV", "1.2 Revotron XZ Plus", 
+                                 "LX 4-Str Convert Top Diesel AT BSVI", "Trend Plus Diesel", "VX Diesel", "Savvy 6 Str 4x2", "1.6 E Plus", "VX CVT i-VTEC", 
+                                 "Prestige", "Sports Diesel", "W7", "W8 Option BSVI", "S 350 CDI", "xDrive20d M Sport", "1.2 TSI Highline AT", "VXI Opt 2019-2022", 
+                                 "Diesel Sportz", "XZ Plus (O) BSVI", "Twist XTA", "XZA Plus AMT BSVI", "T-Jet", "4x2 Manual", "VXI Optional MT BSIV", "H8", "LXI Opt BSIV", 
+                                 "Sportz BSIV", "VX", "1.4 Limited Plus", "VX MT", "3.0 D SE", "LXI Opt S-CNG BSVI", "110PS Diesel RxZ AWD", "XE", "2.5 Z Diesel 7 Seater", 
+                                 "E", "2.0 Longitude AT", "J CVT BSIV", "1.5 Petrol Titanium Plus AT", "1.2 Kappa S", "CRDi 1.6 AT SX Plus", "Sportz Diesel", 
+                                 "1.5 Petrol Titanium Plus", "VXI Plus AT 2019-2022", "Cooper S JCW Inspired", "ZDi Plus", "Alpha CVT", "1.2 V AT i VTEC Privilege", 
+                                 "xDrive 20d Luxury Line", "85PS Diesel RxS", "1.6 VTVT AT SX", "1.2 Asta Dual Tone", "1.2 Magna Opt", "35 TFSI Premium Plus", 
+                                 "Diesel E4", "1.0 AMT RXL", "220d 4MATIC Sport", "VDI Optional", "SLX", "1.2 Delta BSIV", "Asta Option", "4x4 MT", "Zxi BSIII", 
+                                 "1.4 Asta Dual Tone", "Turbo DCT Anniversary Edition", "7 Seater Standard BSIV", "Sportz 1.1L", "Asta Opt BSVI", "1.5 Revotorq XT", 
+                                 "4X2 Diesel BSVI", "E i-Vtech", "1.0 Era Plus", "S i-Vtech", "2.0 TFSI Premium Plus", "1.2 CVT Zeta", "LXI AT", "SX i-VTEC", 
+                                 "1.5 SV i DTEC", "B200 CDI", "Vxi - BSIII", "mFALCON G80 K4", "110PS Diesel RxL AMT", "1.4 DGL", "1.2 LS", "i-DTEC VX", 
+                                 "45 TDI Quattro Technology", "C 220 CDI Style", "Signature 730Ld", "xDrive30d M Sport", "A Petrol", "E250 CDI", "Magna BSIV", 
+                                 "1.0 TSI Topline AT BSVI", "V CVT Diesel BSIV", "1.4 Emotion", "AX7 Diesel AT Luxury Pack AWD BSVI", "E Petrol", "Emotion", 
+                                 "S AT i-Vtech", "1.4 AT Zeta", "1.4 Sport BSVI", "SHVS VDI", "V AT", "Alpha AT", "Era Executive BSIV", "Hybrid Sharp MT", 
+                                 "2.2 Trend MT 4X4", "Titanium Plus Petrol BSIV", "2.0L CRDi MT", "1.3 Sigma", "1.2 Kappa SX Option", "1.5 TDI Comfortline AT", 
+                                 "LXI 1.2", "Maybach S500", "320 CDI L", "1.6 CRDI AT SX Option", "HTX Diesel AT", "1.0 TSI Highline AT BSVI", "1.5 TSI Style DSG", 
+                                 "Savvy CVT BSVI", "1.2 CRDi Sportz", "1.8 S MT", "XV Petrol", "S Diesel", "Luxury Plus Diesel AT BSVI", "Exclusive E 220 d BSIV", 
+                                 "1.6 SX VTVT (O)", "STD CNG 2019-2022", "1.5 TDI Ambition Plus", "Quadrajet 1.3 75PS XE", "1.5 Revotorq XZ Plus", "S 350 d", 
+                                 "S Diesel BSIV", "1.5 V AT", "i VTEC S", "35 TDI Quattro Premium", "XT", "2.8 4WD AT", "1.4 Alpha", "1.2 VX MT", "GT 630d M Sport 2018-2021", 
+                                 "2.0 TDI  Design Edition", "2.0 TDI", "VX i-DTEC", "2.5 GX 7 STR BSIV", "1.4 Zeta", "2.4 VX MT", "XTA Plus AT BSVI", "2010-2014 VXI", 
+                                 "300d BSVI", "HTX IVT", "Sportz BSVI", "GLS I - Euro I", "XT BSVI", "XZA Plus Dark Edition AT", "1.0 TSI Monte Carlo", "Zeta BSVI", 
+                                 "RXT BSVI", "400d 4MATIC BSVI", "Diesel Titanium", "B6 BSVI", "AT W6 2WD", "S Petrol BSIV", "1.4 S", "2.4 ZX 7 STR AT", "VTVT 1.6 AT EX", 
+                                 "1.05 Revotorq XZ", "4x2", "200 CDI Style", "Expression E 220d", "530d Highline", "VX Petrol", "Smart MT", "One", "250d", "45 TFSI Technology", 
+                                 "1.6 Comfortline", "xDrive 30d Design Pure Experience 5 Seater", "D4 SUMMUM", "EX 5 Speed", "Limited Opt AT", "1.6 MPI AT Style BSIV", 
+                                 "i-DTEC ZX", "1.0 RXT AMT", "SX Opt Turbo Dualtone BSVI", "1.5 TDI AT Elegance", "SX Plus AMT", "Limited Opt", "1.5 TSI Style BSVI", 
+                                 "1.2 SX", "330 Li Luxury Line", "1.0 RXL", "1.2 MPI Highline 16 Alloy", "2.2 Titanium AT 4X2", "V Petrol BSIV", "2.2 Trend AT 4X2", 
+                                 "T6 Plus", "2.0 TDI Comfortline", "2.0 SX Option AT", "CRDi 1.6 AT SX Option", "D4 Momentum", "ZX MT", "1.0 MPI Highline", "S Petrol", 
+                                 "1.3 Delta", "VTVT Plus ABS", "1.2 Kappa SX", "Executive", "1.5 Ti VCT MT Titanium BSIV", "Pure 2.0 AWD", "XZ Plus Diesel BSVI", "SV MT", 
+                                 "C 250 CDI Avantgarde", "E2 D", "1.1 CRDi S Option", "EX i-Dtech", "xDrive 30i Luxury Line", "Luxury Plus iMT 6 STR BSVI", "EX BSVI", 
+                                 "Feel DualTone", "BSIV VXI", "1.5 Revotorq XMA", "XV CVT", "Magna Diesel", "Petrol Comfortline 1.2L", "DLE", "mHAWK100 T8", "S5", 
+                                 "1.5 TDI Comfortline", "Cup Edition Comfortline", "1.4 SXI Duratorq", "ZXI Plus Dual Tone BSVI", "Adventure BSVI", "1.2 VTVT S", 
+                                 "320d Sport Line", "Luxury Plus Turbo 6 STR 2022-2023", "W4 Diesel BSVI", "XZA", "i-VTEC VX MT", "Z8L Diesel 4x4 BSVI", "320Ld Luxury Line", 
+                                 "Signature Dual Tone", "Magna 1.4 CRDi", "2.0 TDI Style", "SX Plus Turbo DCT DT", "VTEC", "Ambiente Diesel", "Creative Kaziranga Edition", 
+                                 "XE BSVI", "DI AC BSIII", "ZXI Plus AT", "45 TDI Quattro Premium Plus", "D5 Inscription", "2.4 MT", "2.0 TDI Premium Sport Limited Edition", 
+                                 "2.4 ZX MT BSIV", "Platinum 7-Seater Diesel BSVI", "XZA Plus Dark Edition AT 2020-2022", "1.5 TSI GT DSG", "Petrol Highline 1.2L", "GTX Plus", 
+                                 "RXZ BSVI", "2.4 GX MT", "Diesel LS", "Titanium", "A", "1.6 MPI Style BSIV", "2.4 Inspire M/T", "XZA AMT BSVI", "1.5 Ti VCT AT Titanium", 
+                                 "1.8 TSI MT", "4.2 TDI Quattro Technology", "E Diesel BSVI", "1.2P Trend MT", "T BSIV", "1.5 Sports Edition MT", "SX Opt Turbo iMT BSVI", 
+                                 "W11 Option AT BSIV", "2.2 Titanium AT 4X2 Sunroof", "2.5 Hybrid", "Sportz Plus Diesel", "2.4 VX MT BSIV", "1.4 Limited", "525d", 
+                                 "1.0 TSI Highline Plus AT", "4X2 Diesel AT BSVI", "SX Opt Knight IVT BSVI", "Ghia Duratec", "Platinum AT", "AT Sportz", "2.4 GX 7 STR AT", 
+                                 "ZXI BSVI", "T Petrol", "1.2 CRDi E Plus", "1.5D Trend MT", "Sportz Plus CVT", "2.0 Limited Plus 4X4", "DDiS 200 Sigma", "Sports", 
+                                 "220i M Sport Pro BSVI", "1.4 E Plus", "LS B3 - 10 seats BSIII", "1.2 Kappa Era", "Cooper D", "HTX Diesel iMT BSVI", "Turbo CVT XV BSVI", 
+                                 "Sportz Turbo iMT", "GTX Plus Diesel AT BSVI", "Sportline BSVI", "Turbo XV Premium Opt BSVI", "1.5 TDI Highline Plus", "GTX Plus Diesel AT", 
+                                 "Lx BSIII", "VLX 2WD BSIV", "XZA Plus Dark Edition Diesel", "VXi Plus", "RXT", "D75 K6 Plus", "HTK Plus BSVI", "1.6 SXI ABS Duratec", 
+                                 "200 CDI 4MATIC", "1.4 LS", "D180 SE", "Magna 1.4 CRDi (Diesel)", "SX Turbo", "C 200 Kompressor Elegance AT", "Ultima 1.6 MPI AT Elegance", 
+                                 "1.4 TDI Classic", "XZA DCT BSVI", "VXI Optional AMT BSIV", "GTX Plus Turbo DCT BSVI", "1.2 Kappa S AT", "ZX", "DLS", "VX BSIV", "VX i-Vtech", 
+                                 "V AT BSVI", "AMT VXI Option", "AT ZXi", "ZDi Plus AMT Dual Tone", "Asta Option CVT BSIV", "1.2 CRDi Magna", "2.4 ZX AT", "1.2 CRDi SX", "T10", 
+                                 "HTK Plus", "1.2 Spotz", "Sportz AMT", "1.5 Petrol RXE", "SX Opt IVT BSVI", "1.6 CRDI", "1.2 VXi BSII", "2.2L Pure", "Classic 1.9 TDI MT", 
+                                 "XT CNG BSVI", "1.5 TDCi Titanium", "1.5 Diesel Titanium Plus", "SX i-DTEC", "1.5 VX i DTEC", "XO eRLX Euro II", "T8 Excellence", "1.5 E MT", 
+                                 "DX2 8-SEATER BSIII", "1.2 Active", "HTX G", "1.5 GLXi", "RXL BSVI", "1.5 TSI Style AT BSVI", "1.6 i ABS", "AT VXI", "IPL II Petrol Highline", 
+                                 "1.5 TSI GT Plus BSVI", "1.5D Titanium MT", "Sigma BSIV", "1.6 Highline BSIV", "Edge Edition i-VTEC S", "XE Diesel", "1.5 TDCi Ambiente", 
+                                 "Petrol ZXI", "Titanium Plus AT", "Revotron 1.2T XE", "S CVT Petrol BSIV", "Terra 1.4 TDI", "Magna 1.1", "LXI Opt BSVI", "Sportz Plus BSIV", 
+                                 "Alpha AMT BSVI", "Sport", "XZ Plus Turbo BSVI", "1.3L Advanced Multi-Jet", "eLX", "N8 DCT Dual Tone BSVI", "V i-DTEC", "1.2 Revotron XTA", 
+                                 "2.0 Sport Plus BSIV", "1.5 DLS BSIV ABS Diesel", "S CVT i-VTEC", "1.5 V MT", "V CVT Diesel", "1.6 MPI AT Elegance", "T", "Petrol Highline 1.6L", 
+                                 "1.6 VTVT", "J", "1.5 Diesel Trend BSIV", "mFALCON G80 K2", "Base", "Cooper SD", "1.6", "T8 AMT", "2WD AT", "3 7 Seats BSIII", "RXS Turbo", 
+                                 "RX5", "1.3 TCDi LTZ 8", "D5", "Select Plus 4X4 MT", "Sport 4X4", "250 CDI Classic", "2.0 TDI Multitronic", "XM Plus Diesel", "Diesel D4D JS", 
+                                 "2.0 SX", "Elegance", "VLX SE BSIII", "1.0 MPI Highline Plus BSIV", "B4 Ultimate BSVI", "V6 AT", "CRDi Asta", "Exclusive E 220d", 
+                                 "Creative AMT BSVI", "XZA Plus Dual Tone", "Era Plus Option", "i-VTEC CVT VX", "2.0L Dynamic", "Petrol CVT Asta", "Hybrid", "HTE Diesel", 
+                                 "Asta Opt Turbo DCT BSVI", "Sharp DCT Dualtone", "Sportz CRDi", "Sharp AT BSIV", "XL CVT", "55 TFSI", "RXT Optional", "1.5 DV5 MT Titanium", 
+                                 "mFALCON D75 K6 Plus", "35 TFSI", "35 TFSI Matrix", "4MATIC BSVI", "S BSVI", "1.0 TSI Style AT", "XV 110 PS", "Turbo XL BSVI", "1", 
+                                 "AMT ZXI Option BSIV", "1.5 Petrol Trend", "Highline BSVI", "HSE 3.0 TD6", "Hybrid 2.5", "300h", "ZDi AMT", "30 TFSI Premium FWD", 
+                                 "Luxury Plus Turbo DCT 2022-2023", "Topline AT BSVI", "T CVT", "Savvy CVT Red BSVI", "A Option Petrol", "GTX DCT", "T Option Petrol", 
+                                 "35 TDI Premium Sport", "1.6 MPI ALL STAR", "35 TDI Quattro Technology", "Technology BSVI", "Delta Diesel", "Sigma", "C 200 AVANTGARDE", 
+                                 "2.0L 2WD AT", "XV Premium D BSIV", "GL Plus", "VL AT", "1.2 Revotron XM Option", "P8 BSIV", "85PS Diesel RxZ", "2.0 TDI Highline", "200", 
+                                 "S CNG", "1.2 MPI Trendline", "Magna CNG", "XV D BSIV", "1.5 GTX Plus Diesel DT", "Electric", "2.7 VX 7 STR", "Sharp 7-Str", 
+                                 "sDrive 20d Sportline", "SX Opt Diesel BSIV", "1.1 LXI BSIII", "XZ Diesel", "740Li DPE Signature", "HTK Diesel", "M Sport Petrol", 
+                                 "Sharp Hybrid MT", "XM plus BSVI", "SX i VTEC", "1.8 VL AT", "2.8 GX AT BSIV", "4X4", "S7 140 BSIV", "LXI BSIV", "W6 1.99 mHawk", 
+                                 "2.4 GX 7 STR", "Zxi Plus DT BSVI", "1.2 Revotron XE", "Sportz CNG BSIV", "CNG LXI BSIV", "Emotion (Diesel)", "XV D Premium AMT", 
+                                 "Sigma BSVI", "CNG VXI", "Rubicon BSVI", "2.0 SX AT", "2.7 GX 7 STR", "Z4", "1.8 G CVT", "1.2 Kappa S CNG", "1.0 RXT 02 Anniversary Edition", 
+                                 "1.2 Revotron XB", "LXI Optional", "W7 BSIV", "Sportz CNG", "S Diesel BSVI", "Magna Optional", "200 Sport", "1.6 EX Petrol", "S Option i-VTEC", 
+                                 "Sport Anniversary Edition", "AX7 AT BSVI", "1.4L GD", "xDrive30i M Sport Black Shadow edition", "Urban Edition 200d", "2.0 110 HSE", 
+                                 "ZXI AT BSVI", "W4", "XZ Plus CNG BSVI", "1.2 V", "300d 4MATIC BSVI", "450hL", "Chrome", "S i-DTEC", "200 CGI Sport", "Limousine", 
+                                 "1.99 S10", "CNG LXI Optional", "CNG LXI", "sDrive18d M Sport", "450 4MATIC BSVI", "VTVT 1.6 SX Option", "Technology 2022-2022", 
+                                 "GT 630i M Sport", "3.0 TDI Quattro Technology", "LX 4-Str Convert Top Diesel BSVI", "300d", "Cooper S", "HSE Luxury 2.0 SD4", 
+                                 "1.2 Revotron XZ Option", "SV", "Titanium BSIV", "Savvy 6 Str 4x4", "R-Dynamic SE Diesel", "450h F-Sport", "200 d Sport", 
+                                 "Expression E 200 BSIV", "C 200 Avantgarde Edition C", "250 CDI", "2.0 R-Dynamic SE Diesel", "Thunder Edition Diesel", 
+                                 "Diesel Platinum Edition", "Model S 4X4 Diesel AT BSVI", "4MATIC 2018-2023", "S Plus i-VTEC", "VXi Option SHVS", 
+                                 "Technology", "XZ Plus 6 Str Adventure Edition BSVI", "XZA Plus (O) AT BSVI", "i-DTEC S", "BSIV VXI AT", "RXZ 110PS BSIV", 
+                                 "40TFSI Quattro", "Asta BSIV", "SX Diesel", "Premium Plus I", "1.2 S STD CNG", "SX Diesel AT BSVI", "G MT", "Maybach S560", 
+                                 "1.05 Revotorq XT", "VD", "M Sport X xDrive20d", "1.4 Longitude Plus AT", "VXI CNG 2019-2020", "4MATIC", "Green VXI", "1.6 MPI AT Ambition Plus", 
+                                 "350d Grand Edition", "Exclusive E 200 BSVI", "G 350d", "VXI CNG", "2.4 ZX MT", "400 4MATIC", "Zeta Diesel", "Progressive C 200", "350d 4MATIC", 
+                                 "330Li M Sport First Edition", "1.4 Limited Plus BSIV", "Creative IRA BSVI", "1.2 VTVT E Plus", "1.2 MPI Ambition", "B5 Ultimate BSVI", 
+                                 "RXT Turbo CVT", "Highline Breeze", "Petrol HSE 7S", "Petrol CVT Magna Executive", "520d Sport Line", "R W10 FWD", "30 TDI quattro Premium", 
+                                 "Select Edition Mode", "S4 7 Seater", "ZXI AMT BSIV", "LX 4-Str Hard Top AT RWD BSVI", "V CVT Petrol", "E Diesel", "VIP Executive Lounge", 
+                                 "45 TFSI Premium Plus BSVI", "SX Turbo DCT", "SLE", "1.4 Night Eagle", "W6 Sunroof BSVI", "xDrive 30d SportX Plus", "Unlimited BSVI", 
+                                 "M Sport sDrive 20d", "1.8 G CNG", "1.5 TDCi Ambiente BSIV", "2.0 TDI Technology", "1.2 G", "4x4 AT BSVI", "ZXI AMT 1.2BSIV", 
+                                 "LX 4-Str Hard Top Diesel BSVI", "SX Option", "Savvy 7 Str 4x4", "1.4 E Plus CRDi", "sDrive20i SportX", "Magna 1.1 iTech SE", 
+                                 "2.4 G MT", "1.5 Turbo Sharp Pro CVT", "2.0 Petrol Prestige", "Delta DDiS 200 SH", "350", "SportZ Edition", "E i-VTEC", 
+                                 "S 11 BSVI", "SE Diesel", "VXI CNG BSIV", "2.0 Dual VTVT 2WD AT GL", "X-Line Diesel AT", "Petrol", "1.2 VX Dual Tone", 
+                                 "VDi Plus SHVS", "ZXI Plus AT BSVI", "300 4MATIC Sport", "D4 Momentum BSIV", "2.8 2WD AT BSIV", "Laurin & klement BSVI", 
+                                 "Exclusive E 220d BSVI", "SX Executive", "43 AMG", "Prime C 200", "1.4 AT Alpha", "1.3 Zeta", "VXI 1.2 BSIV", "1.5 V", 
+                                 "Trend Petrol BSIV", "IPL II Petrol Highline AT", "E200 CGI Blue Efficiency", "D75 K6 Plus 5Str", "Smart CVT", 
+                                 "W10 1.99 mHawk", "Petrol Comfortline", "Smart DCT", "1.4 TSI MT Ambition", "GTX Plus Turbo DCT", "X", "2.0 TD4 SE", 
+                                 "VXI Minor", "C 200 BSVI", "Lxi BSVI", "VX CVT BSVI", "1.0 Ecoboost Titanium", "Era LPG", "D75 K4 Plus 5Str", "1.8 V AT Sunroof", 
+                                 "LXI Option", "LDI Optional", "GL PLUS CNG", "1.2 VX AT", "HTK Plus Diesel iMT BSVI", "Zeta AT BSVI", "1.6 LT ABS BS3", "S CNG (O)", 
+                                 "W9 AT", "1.4 Sport Plus BSIV", "G80 K6 Plus", "1.3 AMT Zeta", "GLS CNG", "VXI BSII W/ ABS", "i VTEC VX Option", "1.5 Diesel Ambiente", 
+                                 "J Optional CVT BSIV", "ZXI AT Petrol", "1.2 AMT Alpha BSIV", "1.6 MPI Active BSIV", "Elegance 1.8 TSI AT", "S i-VTEC", 
+                                 "1.2 Kappa Magna CNG BSIV", "VXI AMT BSIV", "1.6 EX VTVT", "E Petrol BSIV", "Active", "1.8 GL", "Urban Sport 200", "XZA Plus", "1.8 J", 
+                                 "Diesel XE", "LX BSII", "G80 K2", "VTVT 1.4 EX", "AX5 7 Str BSVI", "HTK Plus D", "S10 7 Seater", "1.0 TSI Ambition", "1.2 VTVT SX Option", 
+                                 "GL MT", "530i M Sport", "1.4 Anniversary Edition DCT 2021-2022", "2.0L TDI Trendline", "Climber 1.0 AMT", "1.5 GT Plus Edge Matte DSG", 
+                                 "200 Kompressor", "4x2 AT TRD Sportivo", "Zeta Automatic BSIV", "AX7 Diesel Luxury Pack BSVI", "AT", "2.7 2WD AT", "V AWD BSVI", 
+                                 "Revotron 1.2T XMS", "GL", "Signature 7-Seater Diesel AT", "Trip", "1.2 Revotron XMA", "E 200 CGI", "C 200 CGI Avantgarde", 
+                                 "2.4 VX 7 STR", "740Li", "1.4 CRDi Sportz", "VXI AMT BSVI", "Si4 HSE", "330i Sport", "LXI CNG", "CNG LXI Opt BSIV", "HTK Plus Turbo iMT BSVI", 
+                                 "RXZ Turbo DT", "Zxi DT BSVI", "S Turbo BSIV", "1.5 TDCi Titanium Plus", "Creative BSVI", "2.8 2WD AT", "220", "1.3 Active", "W5", 
+                                 "RXZ EASY-R AMT Dual Tone BSVI", "SX Opt Dual Tone Diesel", "2.0 Longitude Option", "Z8L 6 Str AT BSVI", "Savvy Turbo AT BSVI", "2.4", 
+                                 "W9 2WD", "Premium plus BSVI", "S 350 L", "A180 CDI", "Zeta AT", "Asta IVT DT", "Magna BSVI", "1.6 Duratec LXI", "Std", "ZX BSIV", 
+                                 "Magna Optional 1.2", "E 200 CGI Elegance", "SX CRDi AT", "Zeta Turbo AT", "VTVT 1.6 AT SX Plus", "Savvy 6-Str", "Diesel PS", "2.4 G MT 8 STR", 
+                                 "H2 CNG", "W6 Diesel Sunroof BSVI", "VX Petrol BSIV", "1.4 EX Diesel", "1.5 TDCi Trend", "RXL BSIV", "300h Luxury", "Expression E 220 d BSIV", 
+                                 "3.0L Portfolio", "GT TSI BSIV", "E350 Cabriolet", "1.2 Era", "Delta CNG", "1.1 CRDi SX Option", "A 200d BSVI", "Delta AT BSVI", "W8 4WD", 
+                                 "VXI Opt CNG", "Green Std BSIV", "VXI Limited Edition", "Petrol Spotz", "2.2L Dynamic", "Titanium Plus 4X2 AT", "3.0 Petrol SE", 
+                                 "Alpha Dual Tone AT", "VXI CNG BSVI", "230 Avantgarde", "LDIX Limited Edition", "2.7 GX 7 STR AT", "1.2 ZXi BSIV", "1.99 S4 Plus", 
+                                 "1.6 SX Option Diesel", "HTX Plus Turbo iMT BSVI", "SX Opt Turbo", "VXI Opt", "2.0 Limited Plus 4X4 BSIV", "3.2 Trend AT 4X4", 
+                                 "2.0 Limited Plus BSIV", "1.0 MPI Trendline", "VXI 1.2 BS IV", "D75 K8 Dual Tone", "D3 Kinetic", "520d Prestige", "Pure 1.2 FIRE", 
+                                 "ELAN Quadrajet BS III", "1.5 Diesel RXT", "Luxury Plus Diesel AT 6 STR BSVI", "S Opt BSVI", "S iMT BSVI", "Mid", "1.5 Turbo Savvy Pro CVT", 
+                                 "Z4 BSVI", "Petrol Asta", "Climber 1.0 MT", "Diesel LT", "M2 BSIV", "1.2 CRDi Asta", "XTA", "Prime C 220d", "1.3 Turbo XV Pre Option", 
+                                 "Super Diesel MT BSIV", "1.4L VD", "4X4 AT BSIV", "1.0 RXT BSVI", "MM 540", "Revotron 1.2T Anniversary Edition", "Alpha 1.5", 
+                                 "Climber 1.0 AMT Opt", "XZA Plus Dual Tone Roof AMT BSVI", "sDrive 20d M Sport", "LDI BSIV", "30 TDI", "FS F7", "VXi Plus Opt AT", 
+                                 "1.4 TDCi EXI", "1.2 S STD", "Coupe C43 AMG", "Premium BSVI", "Ambiente 2.0 TDI CR MT", "XZA Plus (O) 6 Str Adventure Edition AT", 
+                                 "1.5 V AT Sunroof", "XZA Plus Dual Tone AT BSVI", "V i-VTEC", "N6 iMT BSVI", "2.0 TDI AT Highline", "Xi (Petrol)", "M2 BSVI", 
+                                 "Aura (ABS) Quadrajet BS IV", "T6", "King ST BSIII", "1.1 CRDi S", "Petrol EXI", "RS", "Club Class Quadrajet90 EX", "1.4 Duratorq LXI", 
+                                 "2.0L Diesel Prestige", "3.0L", "ML 350 4Matic", "2.5 G4 Diesel 8-seater", "Zeta DDiS 200 SH", "320 L", "VDi AMT", "RXE", "200 BSVI", 
+                                 "N6 iMT Dual Tone BSVI", "Diesel XV Premium", "ZXI 2018", "1.6 SX Option AT", "XM Diesel", "VXI AGS Optional", "VXI AT 2019-2022", 
+                                 "XL D Option", "SX Sport iMT", "2.0 TD4 Pure", "Aura Plus Quadrajet BS IV", "Alpha Diesel", "118d Sport Line", "C 220 CDI BE Avantgare", 
+                                 "35 TDI Technology Edition", "D3 Summum", "TDV6", "AMT ZDI Plus", "2.6 SLX", "AT Leather", "HTK Plus Turbo DCT", "Prestige Plus Turbo 2022-2023", 
+                                 "CRDi 1.6 AT EX", "W6 AMT Sunroof NT BSVI", "Turbo XV Premium Opt DT BSVI", "J CVT", "1.5 Ti VCT MT Ambiente", "Titanium Diesel", "Style AT", 
+                                 "2.5 G1 Diesel 8-seater", "HTX Plus Diesel", "3.0 Petrol LWB Vogue SE BSIV", "S CVT Petrol", "S Turbo", "Smart Diesel MT", "MULTIJET Emotion", 
+                                 "320d Sport", "520d M Sport", "VX i DTEC", "1.2L Diesel Elegance", "V Diesel BSIV", "1.2 S AT i VTEC", "Diesel RxZ", "i-DTEC V", 
+                                 "3.0 Litre S Premium Luxury", "D5 Summum", "GT 320d Luxury Line", "2.0 TDI AT L and K", "RXL EASY-R AMT", "ZXI Plus AMT", "LXI DUO BSIII", 
+                                 "PRIMEA", "XZ Diesel BSVI", "LX 2WD 7S", "1.6 CRDi AT S Plus", "1.6 SX CRDI (O) AT", "S Plus Diesel", "E i-Dtech", "LX DUO BSIII", 
+                                 "ZX Sensing eHEV", "SLE 7S BSIV", "1.3 S Diesel", "Dynamic Pack", "1.4 VTVT", "XE D", "New Diesel Highline", "1.2 Revotron XZ Plus Dual Tone", 
+                                 "1.6 CRDi EX AT", "1.3 Emotion", "D5 Kinetic", "1.9 TDI AT Ambiente", "XZ Plus Diesel", "DX", "Pleasure 4x2", "D3 R-Design", 
+                                 "GT TSI Sport Edition", "1.4 Magna AT", "mFALCON D75 K8 5str", "D5 Inscription BSIV", "CRDi Sportz", "2.6 GLX", "XZ Plus Adventure Edition BSVI", 
+                                 "2.5 G (Diesel) 7 Seater BS IV", "CRDi Magna", "XV DT BSVI", "1.0 TSI Comfortline AT", "2.4 Zx 7 STR", "1.5 VDI", "1.5 Revotorq XZA Plus", 
+                                 "XL Option CVT", "1.4 AT Delta", "LPG Magna Plus", "Titanium Plus 4X4 AT", "1.6 EX Diesel", "TRD 4X4 AT", "Ambiente 1.8 Turbo", "ZDi Plus AMT", 
+                                 "Star VDI", "Diesel Comfortline AT", "Quadrajet XE", "W8 1.99 mHawk", "Elegance 2.0 TDI CR MT", "Exclusive", "XZ Plus P Dark Edition Diesel", 
+                                 "5 Seater AC BSIV", "5 Seater AC BSVI", "1.5 TDI Trendline", "XM BSVI", "SLX 2.6 Turbo 7 Str", "5 Seater AC 2020-2022", "Climber 1.0 AMT Opt BSIV", 
+                                 "TDI LS", "2.8 4WD MT BSIV", "1.5 Revotorq XZA Plus DualTone", "Hybrid Super MT", "1.8 V AT", "XZ Plus Dark Edition", "D2", "Z8L Diesel BSVI", 
+                                 "mFALCON D75 K4 Plus 5str", "V MT Diesel", "GD", "XT Turbo", "VXI CNG Optional", "T Plus CNG", "W7 AT", "GS", "1.4 Limited Option Black", 
+                                 "ZDi Plus SHVS", "2.0 Longitude Option BSIV", "S5 BSIV", "GT 1.0 TSI", "2.0 TD4 HSE Dynamic", "DI - AC BS III", "180 elegance", "D3", 
+                                 "SX Executive Diesel BSVI", "2.5 E Diesel MS 8-seater", "1.5 E i DTEC", "1.8 GLX", "N10 Option BSVI", "Trend Diesel BSIV", "XM Diesel BSVI", 
+                                 "LDi Option", "GT 1.5 TDI", "Signature Diesel BSVI", "Diesel Comfortline", "XG", "CRDi", "W6 BSVI", "320d Prestige", "M2 8Str BSVI", 
+                                 "Sportz Plus CVT BSIV", "1.6 SXI Duratec", "1.3 GLS", "Vdi BSIII", "1500", "XV Premium DT BSVI", "LPG Era Plus Option", "XP", "LTZ AT", 
+                                 "Diesel Trendline", "Topline BSVI", "XTA Plus Dark Edition AT BSVI", "1.2 LS ABS", "Sportz Petrol", "2.2 AT AWD", "FB 1.7T", "1.0 LT Option Pack w/ Airbag", 
+                                 "1.6 SXi", "B180 Sports", "XZA Plus DT Roof (O) AMT", "1.2 SX Dual Tone", "CRDe AC", "1.8 V MT", "2.0 TFSI Quattro", "1.3 LS", "Creative AMT DT BSVI", "FS B4", 
+                                 "1.5D Base MT", "1.2 CRDi SX Option", "H2", "ZXI Optional MT BSIV", "C 200 Kompressor Elegance MT", "DUO LPG", "VTi-L MT", "1.2 Kappa S Celebration Edition", 
+                                 "Quadrajet 1.3 75PS XMS", "730Ld DPE Signature", "LK 2.0 TDI AT", "SX Opt Adventure Edition IVT DT", "W8 BSIV", "XMA AMT S BSVI", "XZ Plus Dark Edition BSVI", 
+                                 "sDrive20i xLine", "Executive LPG", "M2 8Str BSIV", "2.5 VX (Diesel) 8 Seater", "XZA Dual Tone AT BSVI", "W8 AWD", "1.0 TSI Style BSVI", "2.0 Limited Plus", 
+                                 "1.0 Kappa Magna Plus", "HTX Plus Diesel BSVI", "N8 BSVI", "xDrive M40i", "1.4 CRDi S", "SX Opt Diesel AT", "i-DTEC SV", "1.0 TSI Active BSVI", 
+                                 "2.5 GX (Diesel) 8 Seater BSIII", "VLX 2WD AIRBAG BSIV", "1.4 Delta", "1.4 CRDi S Plus", "2.8 GLX CRZ", "Trend", "i-DTEC VX MT", "1.6 CRDi AT S", "D4 AWD BSIV", 
+                                 "1.8 TSI AT Onyx", "Club Class Quadrajet90 LX", "Aqua 1.3 Quadrajet (ABS)", "Smart CVT BSVI", "1.5 Petrol Trend BSIV", "1.0 RXL 02 Anniversary Edition", "ZXI AMT Optional", 
+                                 "1.3 Base", "1.9 TDI MT Ambiente", "1.6 CRDi S", "RXT DT", "GTX", "1.2 Kappa Sportz Dual Tone", "CR4", "Luxury Plus Diesel iMT BSVI", "300 4MATIC", "E250 Edition E", 
+                                 "S BSIV", "1.5 GTX Plus Diesel AT DT", "XL 9 STR", "Revotron 1.2 XT", "1.0 LS LPG", "3.0 4x4 Thunder Plus", "RVi MT", "VLX 4WD 7S BSIV", "CRDi Asta Option", "4MATIC Coupe BSVI", 
+                                 "TD4 SE", "2.0 TD4 HSE", "S11 4WD BSIV", "DICOR 2.2 EX 4x2 BS IV", "LE", "L n K 1.9 PD", "Magna CRDi Corp Edition", "SX Opt IVT", "AT Vxi Aktiv", "1.2 MPI Ambiente Petrol", "1.4 CRDi Magna", 
+                                 "XZ Plus Dual Tone", "GLE", "W8 Diesel Sunroof BSVI", "AC Uniq", "Vxi BSIII", "E Diesel BSIV", "LXI S-CNG", "1.0 TSI Highline", "1.4 CRDi", "XZA Plus DualTone Roof AMT", "W8 Diesel BSIV", 
+                                 "PS", "S2 9 Seater", "DICOR 2.2 EX 4x2", "1.6 CRDi S Option", "SLX 4WD BSIII", "GLS AT", "S AMT", "1.4 Asta", "320d GT Sport Line", "2.0 Sport Plus", "1.1 GLE", "Aura 1.3 Quadrajet", 
+                                 "Luxury Plus Diesel iMT 6 STR BSVI", "CRDi Base", "XL Petrol", "i-DTEC S MT", "Diesel RxL", "4x2 4 Speed AT", "4x2 MT TRD Sportivo", "New  2.0 TDI Multitronic", "1.2 Vxi BSIV", 
+                                 "HTX Plus AT D", "XL 85 PS", "XV S", "E MPI STD BSIV", "Diesel Asta", "ZXI Plus Dual Tone", "1.6 GLS Petrol", "SLX 2WD", "LX - BSII", "1.9 Highline TDI", "EXi", "XZA Plus AMT S", 
+                                 "LXI Minor Duo LPG", "E Option i-DTEC", "V Option i-VTEC", "1.2 S Option MT", "1.3 EXI", "2.0 Diesel Prestige", "RXT Turbo", "1.2 Ti-VCT Trend", "1.6 LS BS3", 
+                                 "2.5 EV (Diesel) PS 7 Seater BS IV", "Lxi - BSIII", "Petrol LXI", "N4 BSVI", "Hybrid Sharp MT BSIV", "Carrera S BSVI", "SX i DTEC", "S11", "Std BSII", "Special Edition CVT Diesel", 
+                                 "Dicor EX 4X2", "Std MPFi", "650i Gran Coupe", "Alpha DDiS 200 SH", "mFALCON G80 K4 Plus", "1.3 LXI", "mHAWK100 T8 Dual Tone", "Sportz 1.1L LPG", "DI NON AC BS III SILVER", 
+                                 "85PS Diesel RxL Optional with Nav", "LXi - BS III", "AGS ZDI Plus", "XZ CNG BSVI", "XZ Option", "C2", "ZLX BSIII", "DI", "E i-DTEC", "CRDi S", "Feel Dual Tone Turbo", "Inscription D5 BSIV", 
+                                 "Plus Non AC BSIV PS", "110PS Diesel RxZ Plus", "Delta Automatic BSIV", "LXI Opt CNG", "CRDi SX Option AT", "Power Up 1.3 Active", "1.4 CRDi Asta", "1.2 TDI", "MULTIJET Dynamic", 
+                                 "Adventure Rhythm BSVI", "LX Minor", "1.5 DV5 MT Ambiente", "VXI AMT 1.2", "LX BS IV", "2.0 Longitude Option AT", "2.0 R-Dynamic SE diesel 2020-2021", "1.8 V AT Elegance", "1.05 Revotorq XZ Plus DualTone", 
+                                 "1.6 TDI Active Plus", "Dynamic", "i-VTEC V MT", "Magna Corp Edition", "Classic Nova Petrol", "2.0 SX Option", "C 220 CDI Elegance AT", "G80 K4 Plus", "3.0 D HSE Dynamic Black", 
+                                 "Base Petrol", "2.5 VX 7 STR BSIV", "2.0 4X4", "P250", "AMT ZXI Plus BSIV", "ZDi SHVS", "1.6 SX Option", "Asta CRDi", "XZA Plus Gold 6 Str AT", "mFALCON G80 K4 Plus 5str", 
+                                 "EX 10/7 Str BSII", "GT 630d Luxury Line", "Signature", "1.2 MPI Elegance", "2L", "LS B4 - 7(C) seats BSIII", "1.5 Diesel RXL", "G80 K4 Plus 6Str", "2.4 AT", 
+                                 "1.5 TDI AT Ambition BSIV", "T10 Dual Tone BSIV", "ZXI Plus BSVI", "D3 R Design", "S3 9 Seater BSIV", "Sportz Executive CNG", "320d Sedan", "ZXI Plus AMT BSVI", 
+                                 "2.0L Portfolio LWB", "i-VTEC S MT", "Diesel", "1.5 Diesel Ambiente BSIV", "2.4 GDi MT", "Asta Opt", "Sportz Dual Tone", "Platinum Diesel AT", "Grand 1500 DSZ BSIII", 
+                                 "XZ Plus Dark Edition Diesel BSVI", "xDrive 20d M Sport", "Monte Carlo 1.6 MPI BSIV", "1.5 G", "VXI ABS", "Quadrajet 1.3 75PS XM", "VXI AT Petrol", "Asta Turbo DCT", 
+                                 "C 250 CDI Elegance", "1.2 Kappa AT SX Option", "1.2 CRDi Sportz Option", "CNG LXI Opt", "VTVT SX Option AT", "LS BSIV", "525d Sedan", "ZXI 1.2 BS IV", "HSE SD4", 
+                                 "E 350 d BSIV", "2.0 2WD", "2.4 VX 8 STR", "M6 Plus 8Str BSVI", "2.5 G (Diesel) 8 Seater BS IV", "35 TFSi Premium", "mFALCON D75 K4", "1.99 S4 9S", "S10 8 Seater", 
+                                 "J BSIV", "G80 K4 Plus 5Str", "2.0 Limited Option 4X4", "E200 Edition E", "HTX Diesel BSVI", "330Li M Sport BSVI", "1.2P Titanium MT", "3.0L TFSI Quattro BSVI", 
+                                 "1.2 Highline Plus AT 16 Alloy", "1.5 Petrol Ambiente BSIV", "V BSIV", "1.4 LS Limited Edition", "1.0 RXT AMT BSVI", "RxZ Optional", "1.0 LT", "EX MT", 
+                                 "LXI 1.2 BS IV", "2.5 G (Diesel) 7 Seater", "V Petrol", "Encore BSIV", "1.1 CRDi Base", "2.4 GX MT BSIV", "TDI", "Tour H", "Elate Edition VXi", "ZXI BSIV", 
+                                 "AX5 AT BSVI", "XT Limited Edition", "1.5 DLE Diesel", "1.6 CRDi Anniversary Edition", "1.2 LXi BSIII", "XZA Plus DualTone Roof AMT S", "Aqua 1.3 Quadrajet BSIV", 
+                                 "E350 CDI Avantgrade", "Prestige Plus BSVI", "W11 Option AT AWD", "C 220d BSVI", "XZA Plus (O) AMT Diesel", "Limited Opt AT 4x4 BSVI", "Alpha Plus Hybrid CVT DT BSVI", 
+                                 "110PS Diesel RXZ Option", "1.5 S i DTEC", "Era Executive", "CRDi 1.6 EX", "1.05 Revotorq XM", "1.4 Duratorq Titanium", "VTVT 1.4 E", "1.5 Revotorq XE", "Asta Opt DT BSVI", 
+                                 "VX Diesel BSIV", "Asta Opt IVT BSVI", "Z8L Diesel 4x4 AT BSVI", "Anniversary Edition", "Style 2.0 TDI AT", "Luxury Plus Turbo 2022-2023", "1.4 Sport Plus", "1.2L G", "KRAZ", 
+                                 "1.6 CRDi AT SX", "HTK Plus Diesel iMT", "Vxi 1.1", "Petrol HSE Dynamic", "1.6 SX Diesel", "Sharp 6-Str", "2.5 G (Diesel) 7 Seater BS III", "SX Executive BSVI", "Style", 
+                                 "2.0 Limited 4X4 Opt Diesel AT BSVI", "5 Seater AC", "3.0 V6 S", "4x2 AT BSVI", "Prestige Turbo 2022-2023", "1.8 S AT", "320i", "LX 2.6 Turbo", "AMT VXI Option BSIV", 
+                                 "D2 BS III", "1.0 RXT Opt BSIV", "220 D 4MATIC Activity Edition", "W8 AMT Diesel BSVI", "2.0 Limited Option 4X4 Black", "1.2 Ti-VCT Titanium", "Petrol Magna", 
+                                 "SHVS VDI Limited Edition", "Platinum 7-Seater", "1.5 TDCi Trend Plus BE BSIV", "30 TDI quattro Premium Plus", "200 Sport Edition", "1.6 MPI AT Style Plus", 
+                                 "320d Luxury Line Plus", "2.5 G", "Z8L Diesel AT BSVI", "Prestige BSVI", "RxL Travelogue", "1.2 Emotion", "XZA Plus P Dark Edition AMT", "X-Line DCT", "C 200 CGI Elegance"
+                                 ])
+    central_variant_id = st.number_input("Central Variant ID", min_value=0, max_value=15000, value=12345, step=1)
+    price_actual = st.number_input("Actual Price (₹)", min_value=MIN_PRICE, max_value=MAX_PRICE, value=585000, step=1000)
+    price_saving = st.number_input("Price Saving (₹)", min_value=0, max_value=MAX_PRICE, value=0, step=1000)
+    price_fixed_text = st.number_input("Price Fixed Text (₹)", min_value=0, max_value=MAX_PRICE, value=0, step=1000)
+    car_age = st.number_input("Car Age (Years)", min_value=0, max_value=100, value=7, step=1)
+    year_of_manufacture = st.number_input("Year of Manufacture", min_value=2000, max_value=2023, value=2017, step=1)
+    seats = st.number_input("Seats", min_value=1, max_value=10, value=5, step=1)
+    car_links = st.number_input("Car Links", min_value=0.0, max_value=1.0, value=0.312081, step=0.01)
+    submit = st.form_submit_button("Predict Price") 
+    st.write("Form rendered correctly.")
+
+if submit:
+    input_dict = {
+        "car_links": 0.5,
+        "city": city,
+        "new_car_detail_0_it": 0,
+        "new_car_detail_1_ft": fuel_type,
+        "new_car_detail_2_bt": body_type,
+        "new_car_detail_3_km": str(km),
+        "new_car_detail_4_transmission": transmission,
+        "new_car_detail_5_ownerNo": owner_no,
+        "new_car_detail_6_owner": owner_type,
+        "new_car_detail_7_oem": oem,
+        "new_car_detail_8_model": car_model,
+        "new_car_detail_9_modelYear": model_year,
+        "new_car_detail_10_centralVariantId": central_variant_id,
+        "new_car_detail_11_variantName": variant_name,
+        "new_car_detail_14_priceSaving": 0,
+        "new_car_detail_15_priceFixedText": 0,
+        "car_age": car_age,
+        "new_car_overview_1_top_Year of Manufacture": year_of_manufacture,
+        "new_car_specs_1_top_Seats": seats
+    }
+
+    normalized_price = predict_price(input_dict)
+    estimated_price = inverse_price(normalized_price)
+
+    st.success(f"💰 Estimated Resale Price: ₹{int(estimated_price):,}")
+    log_prediction(input_dict, normalized_price, estimated_price)
+                                            

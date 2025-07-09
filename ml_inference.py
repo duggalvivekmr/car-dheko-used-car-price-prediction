@@ -1,4 +1,4 @@
-# Generate a script that predicts and denormalizes the price using actual max price from training data
+# Generate a script that predicts and denormalizes the price using actual max price from training data  
 import pandas as pd
 from price_predictor import predict_price
 

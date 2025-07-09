@@ -197,7 +197,7 @@ def run_preprocessing_pipeline(data_dir, feature_columns):
     df = auto_flatten_nested_columns(df)
     df, scaler = normalize_features(df, feature_columns)  # Normalize numeric features
     # Save scaler and label encoders for later use (e.g., during inference)
-    joblib.dump(scaler, 'model/scaler.pkl')
+    # joblib.dump(scaler, 'model/scaler.pkl')
     joblib.dump(label_encoders, 'model/label_encoders.pkl')
 
     return df # Return the processed DataFrame 
