@@ -165,7 +165,7 @@ Features:
 
 ### Vivek Duggal
 
-[linkedin](www.linkedin.com/in/vivekkduggal)  
+[linkedin](https://www.linkedin.com/in/vivekkduggal/)  
 *GUVI HCL Data Science Trainee*
 
 ---
