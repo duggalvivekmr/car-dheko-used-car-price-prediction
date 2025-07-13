@@ -1,2 +1,4 @@
 model/best_random_forest_model.pkl
 Update .gitignore to exclude model file
+venv/
+
