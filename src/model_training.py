@@ -1,56 +1,73 @@
-# model_training.py
 import pandas as pd
 import joblib
 import os
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.impute import SimpleImputer
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import matplotlib.pyplot as plt
 
-# Load preprocessed data
-df = pd.read_csv("data/processed/preprocessed_data.csv")
+# Paths
+data_path = "data/processed/preprocessed_data.csv"
+feature_path = "model/features.pkl"
+model_path = "model/best_random_forest_model.pkl"
 
-# Drop unwanted columns
-drop_candidates = [
-    'new_car_overview_1_top_Fuel Type', 'new_car_detail_17_trendingText.heading', 'new_car_detail_18_trendingText.desc', 
-    'new_car_specs_1_top_Max Power', 'new_car_overview_1_top_Registration Year', 'new_car_feature_1_top_item_4', 
-    'new_car_overview_1_top_Kms Driven', 'new_car_feature_1_top_item_3', 'new_car_specs_1_top_Engine', 
-    'new_car_overview_1_top_RTO', 'new_car_overview_1_top_Engine Displacement', 'new_car_specs_2_data_Miscellaneous', 
-    'new_car_feature_2_data_Interior', 'new_car_feature_0_heading', 'new_car_feature_1_top_item_8', 
-    'new_car_overview_1_top_Transmission', 'new_car_feature_1_top_item_7', 'new_car_feature_2_data_Entertainment & Communication', 
-    'new_car_feature_2_data_Comfort & Convenience', 'new_car_feature_2_data_Exterior', 'new_car_detail_16_trendingText.imgUrl', 
-    'new_car_specs_1_top_Mileage', 'new_car_specs_2_data_Dimensions & Capacity', 'new_car_specs_2_data_Engine and Transmission', 
-    'new_car_feature_3_commonIcon', 'new_car_overview_1_top_Ownership', 'new_car_feature_1_top_item_6', 
-    'new_car_feature_1_top_item_2', 'new_car_overview_1_top_Seats', 'new_car_overview_1_top_Insurance Validity', 
-    'new_car_specs_3_commonIcon', 'new_car_specs_1_top_Wheel Size', 'new_car_overview_2_bottomData', 
-    'new_car_feature_1_top_item_0', 'new_car_specs_0_heading', 'new_car_specs_1_top_Torque', 
-    'new_car_feature_1_top_item_1', 'new_car_feature_1_top_item_5', 'new_car_overview_0_heading', 
-    'new_car_feature_2_data_Safety'
-    ] # Add the same drop list from modeling.ipynb
-df = df.drop(columns=drop_candidates)
+# Load data and features
+df = pd.read_csv(data_path)
+features = joblib.load(feature_path)
+target = "new_car_detail_12_price"
 
-# Split features and target
-target = 'new_car_detail_12_price'
-X_raw = df.drop(columns=[target])
+# Ensure all features are present
+missing = [f for f in features if f not in df.columns]
+if missing: 
+    raise ValueError(f"Missing features in DataFrame: {missing}")   
+
+# Prepare data
+X = df[features]
 y = df[target]
 
-# Drop columns with all missing values before imputation
-x_non_allnan = X_raw.dropna(axis=1, how='all')
-
-# Impute missing values
-X_raw = X_raw.dropna(axis=1, how='all')
-imputer = SimpleImputer(strategy='median')
-X = pd.DataFrame(imputer.fit_transform(X_raw), columns=X_raw.columns)
-
-# Train-test split
+# Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Train Random Forest
-model = RandomForestRegressor(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
+# Define parameter grid
+param_grid = {
+    'n_estimators': [100, 200],
+    'max_depth': [None, 10, 20],
+    'min_samples_split': [2, 5],
+    'min_samples_leaf': [1, 2]
+}
 
-# Save model and test set
+# Grid search for hyperparameter tuning
+print("🔍 Starting hyperparameter tuning...with GridSearchCV")
+grid_search = GridSearchCV(RandomForestRegressor(random_state=42), param_grid, cv=3, verbose=1, n_jobs=-1)
+grid_search.fit(X_train, y_train)
+
+# Best model
+best_model = grid_search.best_estimator_
+print(f"✅ Best model found with parameters: {grid_search.best_params_}")
+
+# Evaluate model
+y_pred = best_model.predict(X_test) 
+print("\n📊 Model Evaluation Metrics:")
+print("MAE:", mean_absolute_error(y_test, y_pred))
+print("MSE:", mean_squared_error(y_test, y_pred))
+print("R2 Score:", r2_score(y_test, y_pred))
+
+# Feature importance
+importances = best_model.feature_importances_
+feature_names = X.columns
+feat_imp = pd.Series(importances, index=feature_names).sort_values(ascending=False)
+
+# Plot top 15 features
+plt.figure(figsize=(10, 6))
+feat_imp[:15].plot(kind='barh')
+plt.xlabel('Feature Importance')
+plt.title('Top 15 Important Features')
+plt.gca().invert_yaxis()
+plt.tight_layout()
+plt.savefig('model/feature_importance.png')
+plt.show()
+
+# Save model
 os.makedirs("model", exist_ok=True)
-joblib.dump(model, "model/best_random_forest_model.pkl")
-X_test.to_csv("data/processed/X_test.csv", index=False)
-y_test.to_csv("data/processed/y_test.csv", index=False)
-print("✅ Model trained and saved to 'model/best_random_forest_model.pkl'")
+joblib.dump(best_model, model_path)
+print(f"\n✅ Best model trained and saved to '{model_path}'")

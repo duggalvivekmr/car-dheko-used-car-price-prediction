@@ -24,10 +24,6 @@ ordinal_encoders = joblib.load(encoder_path)
 MIN_PRICE = 100000
 MAX_PRICE = 9600000
 
-def inverse_price(predicted_value, min_price=MIN_PRICE, max_price=MAX_PRICE):
-    """Denormalize the predicted price."""
-    return predicted_value * (max_price - min_price) + min_price
-
 # --- Prediction function ---
 categorical_cols = [
     "city",
@@ -414,12 +410,9 @@ with st.form("prediction_form"):
                                  "320d Luxury Line Plus", "2.5 G", "Z8L Diesel AT BSVI", "Prestige BSVI", "RxL Travelogue", "1.2 Emotion", "XZA Plus P Dark Edition AMT", "X-Line DCT", "C 200 CGI Elegance"
                                  ])
     central_variant_id = st.number_input("Central Variant ID", min_value=0, max_value=15000, value=12345, step=1)
-    price_actual = st.number_input("Actual Price (₹)", min_value=MIN_PRICE, max_value=MAX_PRICE, value=585000, step=1000)
-    price_saving = st.number_input("Price Saving (₹)", min_value=0, max_value=MAX_PRICE, value=0, step=1000)
-    price_fixed_text = st.number_input("Price Fixed Text (₹)", min_value=0, max_value=MAX_PRICE, value=0, step=1000)
+    price_actual = st.number_input("price_actual", min_value=10000, max_value=9600000, value=10000, step=1)
     car_age = st.number_input("Car Age (Years)", min_value=0, max_value=100, value=7, step=1)
     year_of_manufacture = st.number_input("Year of Manufacture", min_value=2000, max_value=2023, value=2017, step=1)
-    seats = st.number_input("Seats", min_value=1, max_value=10, value=5, step=1)
     car_links = st.number_input("Car Links", min_value=0.0, max_value=1.0, value=0.312081, step=0.01)
     submit = st.form_submit_button("Predict Price") 
     st.write("Form rendered correctly.")
@@ -428,7 +421,6 @@ if submit:
     input_dict = {
         "car_links": 0.5,
         "city": city,
-        "new_car_detail_0_it": 0,
         "new_car_detail_1_ft": fuel_type,
         "new_car_detail_2_bt": body_type,
         "new_car_detail_3_km": str(km),
@@ -440,16 +432,11 @@ if submit:
         "new_car_detail_9_modelYear": model_year,
         "new_car_detail_10_centralVariantId": central_variant_id,
         "new_car_detail_11_variantName": variant_name,
-        "new_car_detail_14_priceSaving": 0,
-        "new_car_detail_15_priceFixedText": 0,
+        "new_car_detail_13_priceActual": price_actual,
         "car_age": car_age,
-        "new_car_overview_1_top_Year of Manufacture": year_of_manufacture,
-        "new_car_specs_1_top_Seats": seats
+        "new_car_overview_1_top_Year of Manufacture": year_of_manufacture
     }
-
-    normalized_price = predict_price(input_dict)
-    estimated_price = inverse_price(normalized_price)
-
+    estimated_price = predict_price(input_dict)
     st.success(f"💰 Estimated Resale Price: ₹{int(estimated_price):,}")
-    log_prediction(input_dict, normalized_price, estimated_price)
+    log_prediction(input_dict, estimated_price)
                                             

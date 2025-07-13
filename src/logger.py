@@ -10,10 +10,9 @@ logging.basicConfig(
 )
 
 # Define a function to log predictions
-def log_prediction(input_data, normalized_price, estimated_price):
+def log_prediction(input_data, estimated_price):
     log_entry = (
         f"INPUT: {input_data} | "
-        f"NORMALIZED: {normalized_price: .4f} | "
         f"ESTIMATED: {int(estimated_price):,}"
     )
     logging.info(log_entry)
