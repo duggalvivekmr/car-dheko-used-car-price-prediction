@@ -49,7 +49,7 @@ Each row represents a car and includes:
 | `priceActual`  | Actual Sale Price                             |
 | `city`         | City of Listing                               |
 
-📎 Full feature dictionary: [Feature Description](https://docs.google.com/document/d/1hxW7IvCX5806H0IsG2Zg9WnVIpr2ZPueB4AElMTokGs/edit?usp=sharing)
+📎 Full feature dictionary: [Feature Description](https://docs.google.com/document/d/1hxW7IvCX5806H0IsG2Zg9WnVIpr2ZPueB4AElMTokGs/edit?tab=t.0)
 
 ---
 
@@ -132,9 +132,10 @@ Each row represents a car and includes:
 - Git & GitHub for version control  
 - **Git LFS** for handling large dataset files and model binaries
 
-📌 **Git LFS Setup**:
+---
 
-```bash
+## 📌 **Git LFS Setup**:
+
 git lfs install
 git lfs track "*.xlsx" "*.pkl" "*.joblib"
 git add .gitattributes
@@ -142,11 +143,15 @@ git add .gitattributes
 ---
 
 ## 📈 Results Summary 
+
 - High accuracy model with R² > 0.85 on test set.
 - Feature importance revealed modelYear, km, fuel type as top predictors.
 - Deployed app is responsive and user-friendly.
 
+---
+
 ## 📅 Project Timeline (10 Days)
+
 - Days    Activities
 - Day 1-2  Data Cleaning, Feature Extraction
 - Day 3-4  EDA + Visual Insights
@@ -155,14 +160,19 @@ git add .gitattributes
 - Day 8-9  Streamlit App Development + Integration
 - Day 10   Final Documentation + Submission
 
+---
+  
 ## 🔗 Resources
-📁 Dataset (Google Drive)
-📑 Capstone Guidelines
-📘 GitHub Best Practices (Presentation)
+
+📁 Dataset [Google Drive](https://drive.google.com/drive/folders/16U7OH7URsCW0rf91cwyDqEgd9UoeZAJh)
+📑 [Capstone Guidelines](https://drive.google.com/drive/folders/1QPn24zlTJVS94YtxXkUg70AzKuOCPCp6)
+
+---
 
 ### ✍️ Author
+
 Vivek Duggal
-LinkedIn
+[LinkedIn](https://www.linkedin.com/in/vivekkduggal/)
 GUVI HCL Data Science Trainee
 
 🙏 Acknowledgments
