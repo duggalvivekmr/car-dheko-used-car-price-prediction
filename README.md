@@ -1,175 +1,169 @@
-# **🚗 Car Dheko - Used Car Price Prediction**
+# 🚗 Car Dheko - Used Car Price Prediction
 
 ## 📝 Project Overview
 
-This project aims to build an accurate and interactive machine learning model that predicts the price of used cars based on several features such as brand, model, fuel type, transmission, kilometers driven, and more. The model is deployed using **Streamlit** for real-time predictions, making it accessible for both customers and sales representatives.
+This project develops a machine learning model to predict used car prices based on features like brand, model, year, fuel type, and kilometers driven. The final model is deployed via a **Streamlit** application for real-time usage by customers and sales agents.
 
 ---
 
-## 📊 Project Objectives
+## 🎯 Project Objectives
 
-- Predict the price of a used car using machine learning techniques.
-- Clean, process, and analyze data from various cities in India.
-- Build a user-friendly **Streamlit** web application for price prediction.
-- Optimize model performance and present results through visualizations.
+- Predict used car prices using supervised regression techniques.
+- Clean, unify, and process multi-city datasets into a structured format.
+- Visualize insights with EDA techniques.
+- Build and deploy a Streamlit-based price prediction interface.
+- Ensure reproducibility and version control using **Git** and **Git LFS**.
 
 ---
 
 ## 🧠 Skills Demonstrated
 
-- Data Cleaning and Preprocessing  
+- Data Cleaning & Preprocessing  
 - Exploratory Data Analysis (EDA)  
 - Feature Engineering  
-- Machine Learning (Regression Models)  
-- Model Evaluation and Optimization  
+- Model Selection & Evaluation  
+- Hyperparameter Tuning  
 - Streamlit App Development  
-- Documentation & Reporting  
+- Git Version Control + Git LFS  
+- Technical Documentation  
 
 ---
 
-### 1. Data Processing
+## 🗃️ Dataset & Features
 
-- Merged datasets from **Kolkata, Delhi, Bangalore, Chennai, Hyderabad, Jaipur**.
-- Added a new `City` column to each dataset for origin tagging.
-- Cleaned and transformed features (e.g., stripped units from numerical strings).
-- Handled missing values using statistical imputation techniques.
-- Encoded categorical variables using One-Hot and Label Encoding.
-- Scaled numerical features using StandardScaler/MinMaxScaler.
-- Removed outliers using IQR and Z-score methods.
+The dataset combines used car listings from:
 
-### 2. Exploratory Data Analysis (EDA)
+`Kolkata`, `Delhi`, `Bangalore`, `Chennai`, `Hyderabad`, and `Jaipur`.
 
-- Performed descriptive statistics on all features.
-- Used visualizations like histograms, boxplots, scatter plots, and heatmaps.
-- Identified key features affecting car prices (e.g., model year, fuel type, kms driven).
+Each row represents a car and includes:
 
-### 3. Model Development
+| Feature         | Description                                   |
+|----------------|-----------------------------------------------|
+| `oem`          | Original Equipment Manufacturer               |
+| `model`        | Car Model                                     |
+| `modelYear`    | Year of Manufacture                           |
+| `ft`           | Fuel Type (Petrol, Diesel, etc.)              |
+| `transmission` | Manual/Automatic                              |
+| `km`           | Kilometers Driven (cleaned to int)            |
+| `ownerNo`      | Number of Previous Owners                     |
+| `priceActual`  | Actual Sale Price                             |
+| `city`         | City of Listing                               |
 
-- Train-Test Split (80-20 or 70-30).
-- Models tried:
-  - Linear Regression
-  - Decision Tree Regressor
-  - Random Forest Regressor
-  - Gradient Boosting Regressor
-- Cross-validated for stability.
-
-### 4. Model Evaluation
-
-- Evaluation Metrics: 
-  - Mean Absolute Error (MAE)
-  - Mean Squared Error (MSE)
-  - R² Score
-- Compared models and selected the best performer based on metric scores.
-
-### 5. Optimization
-
-- Applied Feature Engineering and Regularization (L1, L2).
-- Performed Hyperparameter Tuning using GridSearchCV.
-
-### 6. Deployment
-
-- Developed a Streamlit app to take user input and return price predictions.
-- Ensured a smooth, user-friendly experience.
+📎 Full feature dictionary: [Feature Description](https://docs.google.com/document/d/1hxW7IvCX5806H0IsG2Zg9WnVIpr2ZPueB4AElMTokGs/edit?usp=sharing)
 
 ---
 
-## 🧾 Dataset Details
+## 🔧 Data Pipeline
 
-- Sourced from **CarDekho** for multiple cities.
-- Contains features like:
-  - Manufacturer (`oem`)
-  - Car Model (`model`)
-  - Year (`modelYear`)
-  - Fuel Type (`ft`)
-  - Transmission (`transmission`)
-  - Kilometers Driven (`km`)
-  - Number of Owners (`ownerNo`)
-  - Price (`priceActual`)
-- For full feature description, refer [Feature Description](https://docs.google.com/document/d/1hxW7IvCX5806H0IsG2Zg9WnVIpr2ZPueB4AElMTokGs/edit?usp=sharing)
+1. **Import & Concatenate**
+   - All city-wise datasets were merged after tagging with a `City` column.
+   - Cleaned unstructured fields (e.g., stripped 'kms', converted prices to float).
 
----
+2. **Handling Missing Values**
+   - Numerical: Imputed using median/mean.
+   - Categorical: Used mode or added "Unknown" category.
 
-## 📈 Results
+3. **Encoding & Scaling**
+   - One-Hot Encoding for nominal categories.
+   - Label/Ordinal Encoding for ordinal features.
+   - MinMaxScaler/StandardScaler used based on model requirements.
 
-- Built and deployed a high-performing used car price prediction model.
-- Streamlit app functional for public and internal use.
-- Achieved low error scores on evaluation metrics.
-- Provided comprehensive documentation and visual reports.
+4. **Outlier Removal**
+   - IQR and Z-score techniques applied on numerical fields.
 
 ---
 
-## 🚀 Streamlit App
+## 📊 Exploratory Data Analysis
 
-> Users can input car details like brand, year, fuel type, and get an instant prediction.
+- Visuals: Histograms, Boxplots, Correlation Heatmaps, Pairplots.
+- Correlation insights on how fuel type, year, and OEM affect price.
+- Identified high-variance features and performed dimensionality reduction where needed.
 
-Features:
+---
 
-- Real-time predictions
-- Clean interface
-- Mobile and desktop-friendly
+## 🤖 Model Development & Evaluation
+
+| Step                  | Description |
+|-----------------------|-------------|
+| Train-Test Split      | 70:30 or 80:20 split |
+| Algorithms Used       | Linear Regression, Decision Tree, Random Forest, XGBoost |
+| Cross-Validation      | 5-fold CV |
+| Evaluation Metrics    | MAE, MSE, R² Score |
+| Hyperparameter Tuning | GridSearchCV / RandomizedSearchCV |
+
+---
+
+## 🛠 Optimization
+
+- Regularization: L1 (Lasso), L2 (Ridge) to mitigate overfitting.
+- Feature Engineering: Derived interaction terms and ratios.
+- Model comparison based on test scores and bias-variance tradeoff.
+
+---
+
+## 🚀 Deployment
+
+- **Streamlit App**
+  - Allows users to select inputs via dropdowns and sliders.
+  - Returns real-time price prediction with confidence indicator.
+
+- **Deployment Requirements**
+  - `requirements.txt` for environment setup.
+  - GitHub-integrated CI/CD with version tracking.
+  - App can be deployed on **Streamlit Cloud** or **Heroku**.
 
 ---
 
 ## 📦 Deliverables
 
-- Source code for:
-  - Data cleaning and preprocessing
-  - Model training and tuning
-  - Streamlit app
-- Streamlit deployment files
-- Visual EDA report
-- Documentation (this README, methodology)
-- Final trained ML model
+- 🗂 Source Code: Preprocessing, Modeling, EDA, Deployment Scripts  
+- 📊 EDA Report (HTML/Notebook)  
+- 🧠 Trained ML Model (.pkl or .joblib)  
+- 🌐 Streamlit App & Deployment Files  
+- 📄 Final Documentation (README + Methodology)
 
 ---
 
-## 📊 Evaluation Metrics
+## 💻 Tools & Technologies
 
-- **MAE**, **MSE**, **R² Score**
-- Quality of data preprocessing
-- Usability and UI of Streamlit app
-- Clarity of documentation
+- Python, Pandas, NumPy, Matplotlib, Seaborn  
+- Scikit-learn, XGBoost, LightGBM  
+- Streamlit, Jupyter Notebook  
+- Git & GitHub for version control  
+- **Git LFS** for handling large dataset files and model binaries
 
----
+📌 **Git LFS Setup**:
 
-## 🧰 Tools and Technologies
-
-- Python, Pandas, NumPy, Matplotlib, Seaborn
-- Scikit-learn, XGBoost, LightGBM
-- Streamlit for deployment
-- Jupyter Notebooks
-- Git for version control
+```bash
+git lfs install
+git lfs track "*.xlsx" "*.pkl" "*.joblib"
+git add .gitattributes
 
 ---
 
-## 📆 Timeline
+## 📈 Results Summary 
+- High accuracy model with R² > 0.85 on test set.
+- Feature importance revealed modelYear, km, fuel type as top predictors.
+- Deployed app is responsive and user-friendly.
 
-- **Total Duration:** 10 Days  
-  - Day 1-2: Data Cleaning & Merging  
-  - Day 3-4: EDA  
-  - Day 5-6: Model Development & Evaluation  
-  - Day 7: Model Optimization  
-  - Day 8-9: Streamlit App & Testing  
-  - Day 10: Documentation & Submission  
+## 📅 Project Timeline (10 Days)
+- Days    Activities
+- Day 1-2  Data Cleaning, Feature Extraction
+- Day 3-4  EDA + Visual Insights
+- Day 5-6  Model Training + Evaluation
+- Day 7    Hyperparameter Tuning + Optimization
+- Day 8-9  Streamlit App Development + Integration
+- Day 10   Final Documentation + Submission
 
----
+## 🔗 Resources
+📁 Dataset (Google Drive)
+📑 Capstone Guidelines
+📘 GitHub Best Practices (Presentation)
 
-## 🔗 Useful Links
+### ✍️ Author
+Vivek Duggal
+LinkedIn
+GUVI HCL Data Science Trainee
 
-- [Dataset (Google Drive)](https://drive.google.com/drive/folders/16U7OH7URsCW0rf91cwyDqEgd9UoeZAJh)
-- [Capstone Project Guidelines](https://docs.google.com/document/d/1gbhLvJYY7J73lu1g9c6C9LRJvYemiDOdRDAEMe632w8/edit)
-
----
-
-## ✍️ Author
-
-### Vivek Duggal
-
-[linkedin](https://www.linkedin.com/in/vivekkduggal/)  
-*GUVI HCL Data Science Trainee*
-
----
-
-## 📢 Acknowledgments
-
-Thanks to **CarDekho** for the dataset and **GUVI** for mentoring and project structure.
+🙏 Acknowledgments
+Thanks to CarDekho for the dataset and GUVI for mentorship and project structure.
