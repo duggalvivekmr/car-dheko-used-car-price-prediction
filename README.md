@@ -164,16 +164,16 @@ git add .gitattributes
   
 ## 🔗 Resources
 
-📁 Dataset [Google Drive](https://drive.google.com/drive/folders/16U7OH7URsCW0rf91cwyDqEgd9UoeZAJh)
-📑 [Capstone Guidelines](https://drive.google.com/drive/folders/1QPn24zlTJVS94YtxXkUg70AzKuOCPCp6)
+📁 Dataset [Google Drive](https://drive.google.com/drive/folders/16U7OH7URsCW0rf91cwyDqEgd9UoeZAJh)  
+📑 [Capstone Guidelines](https://drive.google.com/drive/folders/1QPn24zlTJVS94YtxXkUg70AzKuOCPCp6)  
 
 ---
 
 ### ✍️ Author
 
-Vivek Duggal
-[LinkedIn](https://www.linkedin.com/in/vivekkduggal/)
-GUVI HCL Data Science Trainee
+Vivek Duggal  
+[LinkedIn](https://www.linkedin.com/in/vivekkduggal/)  
+GUVI HCL Data Science Trainee  
 
-🙏 Acknowledgments
+🙏 Acknowledgments  
 Thanks to CarDekho for the dataset and GUVI for mentorship and project structure.
